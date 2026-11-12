@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "SecondBrain Vault",
+    "owner": "luismalana0428",
+    "slug": "second-brain-vault",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.luismalana.secondbrainvault"
+    },
+    "android": {
+      "package": "com.luismalana.secondbrainvault",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#000000"
+      },
+      "permissions": [
+        "VIBRATE",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
+  }
+}
