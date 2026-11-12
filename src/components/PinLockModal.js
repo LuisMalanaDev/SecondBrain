@@ -117,7 +117,6 @@ export default function PinLockModal({
     <Modal visible={visible} transparent={!fullScreen} animationType="fade" onRequestClose={onCancel}>
       <View style={[styles.backdrop, fullScreen && styles.backdropFull]}>
         <View style={styles.card}>
-          <Text style={styles.lockIcon}>🔒</Text>
           <Text style={styles.title}>{heading}</Text>
           <Text style={styles.sub}>{sub}</Text>
 
@@ -178,19 +177,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     alignItems: 'center'
   },
-  lockIcon: { fontSize: 34, marginBottom: 8 },
-  title: { color: COLORS.textPrimary, fontSize: 19, fontWeight: '800' },
-  sub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4, textAlign: 'center' },
+  title: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '700' },
+  sub: { color: COLORS.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' },
   dotsRow: { flexDirection: 'row', gap: 16, marginTop: 22 },
   dot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: COLORS.textMuted
+    borderColor: COLORS.borderHover
   },
   dotFilled: { backgroundColor: COLORS.textPrimary, borderColor: COLORS.textPrimary },
-  error: { color: COLORS.password, fontSize: 12, fontWeight: '700', height: 18, marginTop: 10 },
+  error: { color: COLORS.danger, fontSize: 12, fontWeight: '600', height: 18, marginTop: 10 },
   pad: {
     flexDirection: 'row',
     flexWrap: 'wrap',

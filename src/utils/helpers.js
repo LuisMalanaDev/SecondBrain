@@ -53,9 +53,9 @@ export function passwordStrength(pw = '') {
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
   if (/\d/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  if (score <= 2) return { label: 'Weak', color: '#F43F5E', pct: 33 };
-  if (score <= 3) return { label: 'Okay', color: '#F59E0B', pct: 66 };
-  return { label: 'Strong', color: '#10B981', pct: 100 };
+  if (score <= 2) return { label: 'Weak', color: '#8E8E93', pct: 33 };
+  if (score <= 3) return { label: 'Good', color: '#D4D4D8', pct: 66 };
+  return { label: 'Strong', color: '#FFFFFF', pct: 100 };
 }
 
 export function normalizeTag(raw = '') {

@@ -1,5 +1,5 @@
 // ============================================================================
-// src/components/SettingsModal.js — Vault Settings, Security & Backup Management
+// src/components/SettingsModal.js — Modern Minimalist Settings & Portability
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -63,7 +63,7 @@ export default function SettingsModal({
 
   function handleToggleLockOnOpen(val) {
     if (val && !pinCode) {
-      Alert.alert('PIN Required', 'Please set a 4-digit Master PIN first before enabling Lock on App Launch.', [
+      Alert.alert('PIN Required', 'Please set a 4-digit master PIN first before enabling Lock on App Launch.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Set PIN', onPress: () => onRequestSetPin && onRequestSetPin() }
       ]);
@@ -84,10 +84,10 @@ export default function SettingsModal({
       };
       const json = JSON.stringify(backupData, null, 2);
       await Clipboard.setStringAsync(json);
-      onShowToast && onShowToast(`Copied ${items.length} items to clipboard! 📋`);
+      onShowToast && onShowToast(`Copied ${items.length} items to clipboard`);
       Alert.alert(
         'Backup Exported',
-        `Successfully exported ${items.length} vault items to your clipboard.\n\nYou can now paste and save it securely in a safe document or messaging yourself.`
+        `Successfully exported ${items.length} items to your clipboard.\n\nYou can now paste and save it safely in a private file.`
       );
     } catch (e) {
       Alert.alert('Export Failed', 'Could not copy backup data to clipboard.');
@@ -101,28 +101,28 @@ export default function SettingsModal({
         setImportText(text);
         setImportError('');
       } else {
-        setImportError('Clipboard is empty.');
+        setImportError('Clipboard is empty');
       }
     } catch (e) {
-      setImportError('Could not read from clipboard.');
+      setImportError('Could not read from clipboard');
     }
   }
 
   function handleExecuteRestore() {
     if (!importText.trim()) {
-      setImportError('Please paste your backup JSON first.');
+      setImportError('Please paste your backup JSON first');
       return;
     }
     try {
       const parsed = JSON.parse(importText.trim());
       if (!isValidBackup(parsed)) {
-        setImportError('Invalid backup structure. The JSON must contain a valid "items" array.');
+        setImportError('Invalid backup structure. The JSON must contain a valid items array.');
         return;
       }
 
       Alert.alert(
         'Confirm Restore',
-        `Found ${parsed.items.length} items in backup. This will replace or update your current vault items. Continue?`,
+        `Found ${parsed.items.length} items. This will restore and update your vault. Continue?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -133,13 +133,13 @@ export default function SettingsModal({
               setShowImport(false);
               setImportText('');
               setImportError('');
-              onShowToast && onShowToast(`Restored ${parsed.items.length} items! ✅`);
+              onShowToast && onShowToast(`Restored ${parsed.items.length} items`);
             }
           }
         ]
       );
     } catch (e) {
-      setImportError('Invalid JSON format. Check for missing brackets or quotes.');
+      setImportError('Invalid JSON format. Check brackets and quotes.');
     }
   }
 
@@ -147,7 +147,7 @@ export default function SettingsModal({
     const t = normalizeTag(newTagInput);
     if (!t) return;
     if (allTags.includes(t)) {
-      Alert.alert('Tag Exists', `The tag "${t}" is already in your vault.`);
+      Alert.alert('Tag Exists', `The tag "${t}" already exists.`);
       return;
     }
     onAddTag && onAddTag(t);
@@ -157,12 +157,12 @@ export default function SettingsModal({
 
   function confirmClearAll() {
     Alert.alert(
-      '⚠️ Wipe Vault Data',
-      'Are you sure you want to delete ALL notes, snippets, passwords, checklists, and links? This action cannot be undone.',
+      'Wipe Vault Data',
+      'Are you sure you want to permanently delete ALL vault items? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Everything',
+          text: 'Delete All',
           style: 'destructive',
           onPress: () => {
             onClearAllItems && onClearAllItems();
@@ -179,10 +179,7 @@ export default function SettingsModal({
         <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerTitleRow}>
-              <Text style={styles.headerIcon}>⚙️</Text>
-              <Text style={styles.headerTitle}>Vault Settings</Text>
-            </View>
+            <Text style={styles.headerTitle}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
@@ -191,33 +188,30 @@ export default function SettingsModal({
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
             {/* Section: Security */}
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>🔒 SECURITY & PIN LOCK</Text>
+              <Text style={styles.sectionHeader}>SECURITY</Text>
 
               <View style={styles.rowCard}>
                 <View style={styles.rowCardLeft}>
-                  <Text style={styles.rowCardTitle}>Master 4-Digit PIN</Text>
+                  <Text style={styles.rowCardTitle}>Master PIN</Text>
                   <Text style={styles.rowCardSub}>
-                    {pinCode ? 'Active • Passwords & locked notes protected' : 'Not set • Tap to secure your vault'}
+                    {pinCode ? 'Active (4-digit passcode set)' : 'Not configured'}
                   </Text>
                 </View>
                 {pinCode ? (
                   <View style={styles.btnRow}>
-                    <TouchableOpacity
-                      style={[styles.smallBtn, { borderColor: COLORS.accentPrimary }]}
-                      onPress={onRequestSetPin}
-                    >
+                    <TouchableOpacity style={styles.smallBtn} onPress={onRequestSetPin}>
                       <Text style={styles.smallBtnText}>Change</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.smallBtn, { borderColor: COLORS.password, marginLeft: 8 }]}
+                      style={[styles.smallBtn, { marginLeft: 8 }]}
                       onPress={onRequestRemovePin}
                     >
-                      <Text style={[styles.smallBtnText, { color: COLORS.password }]}>Remove</Text>
+                      <Text style={[styles.smallBtnText, { color: COLORS.danger }]}>Remove</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity style={styles.primarySmallBtn} onPress={onRequestSetPin}>
-                    <Text style={styles.primarySmallBtnText}>+ Set PIN</Text>
+                    <Text style={styles.primarySmallBtnText}>Set PIN</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -225,41 +219,38 @@ export default function SettingsModal({
               <View style={styles.rowCard}>
                 <View style={styles.rowCardLeft}>
                   <Text style={styles.rowCardTitle}>Lock on App Launch</Text>
-                  <Text style={styles.rowCardSub}>Require PIN/Biometric every time the app opens</Text>
+                  <Text style={styles.rowCardSub}>Require authentication on opening app</Text>
                 </View>
                 <Switch
                   value={Boolean(settings.lockOnAppOpen)}
                   onValueChange={handleToggleLockOnOpen}
-                  trackColor={{ false: COLORS.border, true: '#10B981' }}
-                  thumbColor="#FFFFFF"
+                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
+                  thumbColor={settings.lockOnAppOpen ? '#000000' : '#8E8E93'}
                 />
               </View>
 
               <View style={styles.rowCard}>
                 <View style={styles.rowCardLeft}>
-                  <Text style={styles.rowCardTitle}>Biometric Unlock</Text>
-                  <Text style={styles.rowCardSub}>Use Fingerprint or Face ID to unlock instantly</Text>
+                  <Text style={styles.rowCardTitle}>Biometric Authentication</Text>
+                  <Text style={styles.rowCardSub}>Fingerprint or Face ID unlock</Text>
                 </View>
                 <Switch
                   value={Boolean(settings.biometricEnabled)}
                   onValueChange={handleToggleBiometric}
-                  trackColor={{ false: COLORS.border, true: '#10B981' }}
-                  thumbColor="#FFFFFF"
+                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
+                  thumbColor={settings.biometricEnabled ? '#000000' : '#8E8E93'}
                 />
               </View>
             </View>
 
-            {/* Section: Backup & Data Portability */}
+            {/* Section: Backup */}
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>📦 DATA PORTABILITY & BACKUP</Text>
+              <Text style={styles.sectionHeader}>DATA & BACKUP</Text>
 
               <TouchableOpacity style={styles.actionRow} onPress={handleExportVault} activeOpacity={0.7}>
-                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
-                  <Text style={{ fontSize: 18 }}>📋</Text>
-                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.actionTitle}>Export Vault Backup (JSON)</Text>
-                  <Text style={styles.actionSub}>Copies all {items.length} items to clipboard to store safely</Text>
+                  <Text style={styles.actionTitle}>Export Backup (JSON)</Text>
+                  <Text style={styles.actionSub}>Copy all {items.length} vault items to clipboard</Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
@@ -272,12 +263,9 @@ export default function SettingsModal({
                 }}
                 activeOpacity={0.7}
               >
-                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                  <Text style={{ fontSize: 18 }}>📥</Text>
-                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.actionTitle}>Restore Vault from JSON</Text>
-                  <Text style={styles.actionSub}>Import and restore notes, passwords & snippets</Text>
+                  <Text style={styles.actionTitle}>Restore from JSON</Text>
+                  <Text style={styles.actionSub}>Import and restore notes, passwords & code</Text>
                 </View>
                 <Text style={styles.chevron}>{showImport ? '⌄' : '›'}</Text>
               </TouchableOpacity>
@@ -286,9 +274,9 @@ export default function SettingsModal({
               {showImport && (
                 <View style={styles.importBox}>
                   <View style={styles.importHeaderRow}>
-                    <Text style={styles.importLabel}>Paste Vault Backup JSON:</Text>
+                    <Text style={styles.importLabel}>Paste backup JSON</Text>
                     <TouchableOpacity onPress={handlePasteFromClipboard} style={styles.pasteBtn}>
-                      <Text style={styles.pasteBtnText}>📋 Paste from Clipboard</Text>
+                      <Text style={styles.pasteBtnText}>Paste</Text>
                     </TouchableOpacity>
                   </View>
                   <TextInput
@@ -305,15 +293,15 @@ export default function SettingsModal({
                   />
                   {importError ? <Text style={styles.errorText}>{importError}</Text> : null}
                   <TouchableOpacity style={styles.restoreBtn} onPress={handleExecuteRestore}>
-                    <Text style={styles.restoreBtnText}>⚡ Validate & Restore Vault</Text>
+                    <Text style={styles.restoreBtnText}>Restore Vault</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
 
-            {/* Section: Tag Management */}
+            {/* Section: Tags */}
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>🏷️ TAG MANAGEMENT</Text>
+              <Text style={styles.sectionHeader}>TAGS</Text>
               <View style={styles.tagsContainer}>
                 {allTags.map((t) => (
                   <View key={t} style={styles.tagPill}>
@@ -332,7 +320,7 @@ export default function SettingsModal({
               <View style={styles.newTagRow}>
                 <TextInput
                   style={styles.newTagInput}
-                  placeholder="#add-tag (e.g. #finance, #travel)"
+                  placeholder="#new-tag"
                   placeholderTextColor={COLORS.textMuted}
                   value={newTagInput}
                   onChangeText={setNewTagInput}
@@ -340,18 +328,18 @@ export default function SettingsModal({
                   onSubmitEditing={handleAddNewTag}
                 />
                 <TouchableOpacity style={styles.addTagBtn} onPress={handleAddNewTag}>
-                  <Text style={styles.addTagBtnText}>+ Add</Text>
+                  <Text style={styles.addTagBtnText}>Add</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Section: Danger Zone */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: COLORS.password }]}>⚠️ DANGER ZONE</Text>
+              <Text style={[styles.sectionHeader, { color: COLORS.danger }]}>DANGER ZONE</Text>
               <TouchableOpacity style={styles.dangerRow} onPress={confirmClearAll} activeOpacity={0.7}>
-                <View>
-                  <Text style={styles.dangerTitle}>Clear All Vault Data</Text>
-                  <Text style={styles.dangerSub}>Permanently delete all {items.length} vault items</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dangerTitle}>Clear All Data</Text>
+                  <Text style={styles.dangerSub}>Permanently delete all {items.length} items</Text>
                 </View>
                 <View style={styles.dangerBtn}>
                   <Text style={styles.dangerBtnText}>Delete All</Text>
@@ -359,13 +347,10 @@ export default function SettingsModal({
               </TouchableOpacity>
             </View>
 
-            {/* Footer / About */}
+            {/* Minimal About */}
             <View style={styles.aboutBox}>
-              <Text style={styles.aboutLogo}>🧠 SECONDBRAIN VAULT</Text>
-              <Text style={styles.aboutSub}>v1.0.0 • 100% Offline-First • Zero Cloud Sync</Text>
-              <Text style={styles.aboutMuted}>
-                Your data stays exclusively in local flash storage on this device.
-              </Text>
+              <Text style={styles.aboutSub}>SecondBrain Vault • 100% Offline</Text>
+              <Text style={styles.aboutMuted}>Stored locally in device memory.</Text>
             </View>
           </ScrollView>
         </View>
@@ -382,8 +367,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
     maxHeight: '90%',
@@ -399,30 +384,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border
   },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  headerIcon: {
-    fontSize: 20,
-    marginRight: 10
-  },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: COLORS.textPrimary
   },
   closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: COLORS.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center'
   },
   closeBtnText: {
     color: COLORS.textSecondary,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600'
   },
   body: {
@@ -433,40 +410,40 @@ const styles = StyleSheet.create({
     paddingBottom: 24
   },
   section: {
-    marginBottom: 26
+    marginBottom: 24
   },
   sectionHeader: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: COLORS.textMuted,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     marginBottom: 10
   },
   rowCard: {
     backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10
+    marginBottom: 8
   },
   rowCardLeft: {
     flex: 1,
     marginRight: 12
   },
   rowCardTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.textPrimary,
     marginBottom: 2
   },
   rowCardSub: {
     fontSize: 12,
-    color: COLORS.textSecondary
+    color: COLORS.textMuted
   },
   btnRow: {
     flexDirection: 'row',
@@ -474,20 +451,21 @@ const styles = StyleSheet.create({
   },
   smallBtn: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6
+    borderColor: COLORS.borderHover,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5
   },
   smallBtnText: {
-    color: COLORS.textPrimary,
+    color: COLORS.textSecondary,
     fontSize: 12,
     fontWeight: '600'
   },
   primarySmallBtn: {
-    backgroundColor: COLORS.accentPrimary,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 7
+    backgroundColor: COLORS.textPrimary,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6
   },
   primarySmallBtnText: {
     color: '#000000',
@@ -498,42 +476,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 14,
-    marginBottom: 10
-  },
-  actionIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14
+    marginBottom: 8
   },
   actionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.textPrimary,
     marginBottom: 2
   },
   actionSub: {
     fontSize: 12,
-    color: COLORS.textSecondary
+    color: COLORS.textMuted
   },
   chevron: {
-    fontSize: 20,
+    fontSize: 18,
     color: COLORS.textMuted,
     marginLeft: 10
   },
   importBox: {
-    backgroundColor: '#09090D',
-    borderRadius: 16,
+    backgroundColor: COLORS.codeBg,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 14,
-    marginBottom: 10
+    padding: 12,
+    marginBottom: 8
   },
   importHeaderRow: {
     flexDirection: 'row',
@@ -544,53 +514,53 @@ const styles = StyleSheet.create({
   importLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textSecondary
+    color: COLORS.textMuted
   },
   pasteBtn: {
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: COLORS.surfaceElevated
+    borderRadius: 4,
+    backgroundColor: COLORS.surfaceSubtle
   },
   pasteBtnText: {
     fontSize: 11,
-    color: COLORS.note,
+    color: COLORS.textPrimary,
     fontWeight: '600'
   },
   importInput: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 10,
     color: COLORS.textPrimary,
     fontSize: 12,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    minHeight: 80,
+    minHeight: 70,
     textAlignVertical: 'top',
-    marginBottom: 10
+    marginBottom: 8
   },
   errorText: {
-    color: COLORS.password,
+    color: COLORS.danger,
     fontSize: 12,
     marginBottom: 8
   },
   restoreBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: COLORS.textPrimary,
+    borderRadius: 8,
+    paddingVertical: 9,
     alignItems: 'center'
   },
   restoreBtnText: {
     color: '#000000',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700'
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12
+    gap: 6,
+    marginBottom: 10
   },
   tagPill: {
     flexDirection: 'row',
@@ -598,26 +568,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4
   },
   tagText: {
     fontSize: 12,
-    color: COLORS.textPrimary,
+    color: COLORS.textSecondary,
     marginRight: 6
   },
   tagDeleteBtn: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center'
+    paddingHorizontal: 2
   },
   tagDeleteText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: COLORS.textMuted,
     lineHeight: 14
   },
   newTagRow: {
@@ -629,7 +594,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     color: COLORS.textPrimary,
@@ -637,12 +602,12 @@ const styles = StyleSheet.create({
     marginRight: 8
   },
   addTagBtn: {
-    backgroundColor: COLORS.surfaceElevated,
+    backgroundColor: COLORS.surfaceSubtle,
     borderWidth: 1,
-    borderColor: COLORS.accentPrimary,
-    borderRadius: 12,
+    borderColor: COLORS.borderHover,
+    borderRadius: 8,
     paddingHorizontal: 14,
-    paddingVertical: 9
+    paddingVertical: 8
   },
   addTagBtnText: {
     color: COLORS.textPrimary,
@@ -653,55 +618,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(244, 63, 94, 0.08)',
+    backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.3)',
-    borderRadius: 16,
+    borderColor: COLORS.border,
+    borderRadius: 12,
     padding: 14
   },
   dangerTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.password,
+    fontWeight: '600',
+    color: COLORS.danger,
     marginBottom: 2
   },
   dangerSub: {
     fontSize: 12,
-    color: COLORS.textSecondary
+    color: COLORS.textMuted
   },
   dangerBtn: {
-    backgroundColor: COLORS.password,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    backgroundColor: 'rgba(229, 72, 77, 0.15)',
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: 6,
+    paddingHorizontal: 10,
     paddingVertical: 6
   },
   dangerBtnText: {
-    color: '#FFFFFF',
+    color: COLORS.danger,
     fontSize: 12,
     fontWeight: '700'
   },
   aboutBox: {
     alignItems: 'center',
-    paddingVertical: 18,
-    marginTop: 10,
+    paddingVertical: 16,
+    marginTop: 8,
     borderTopWidth: 1,
     borderTopColor: COLORS.border
-  },
-  aboutLogo: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    letterSpacing: 2,
-    marginBottom: 4
   },
   aboutSub: {
     fontSize: 11,
     color: COLORS.textSecondary,
-    marginBottom: 4
+    fontWeight: '600',
+    marginBottom: 2
   },
   aboutMuted: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    textAlign: 'center'
+    fontSize: 11,
+    color: COLORS.textMuted
   }
 });

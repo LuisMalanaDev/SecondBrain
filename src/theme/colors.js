@@ -1,43 +1,44 @@
 // ============================================================================
-// src/theme/colors.js — Apple Monochrome + Cyber Obsidian Theme
+// src/theme/colors.js — Modern Minimalist Monochrome Theme
+// Inspired by Apple Notes, Things 3, and Linear
 // ============================================================================
 
 export const COLORS = {
   background: '#000000',
-  surface: '#0D0D11',
-  surfaceElevated: '#15151C',
-  border: '#262630',
-  borderActive: '#FFFFFF',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A1A1AA',
-  textMuted: '#71717A',
+  surface: '#0B0B0D',
+  surfaceElevated: '#131316',
+  surfaceSubtle: '#1A1A1E',
+  border: '#222226',
+  borderHover: '#33333A',
+  borderLight: '#2C2C32',
+  textPrimary: '#EDEDED',
+  textSecondary: '#9A9AA2',
+  textMuted: '#585860',
+  accent: '#FFFFFF',
+  accentSubtle: '#27272D',
+  // Restrained semantic accents (used sparingly, no radiant neons)
+  success: '#30A46C',
+  danger: '#E5484D',
+  codeBg: '#070708',
+  badgeBg: '#161619',
+  badgeText: '#A1A1AA',
+  // Backward compatibility aliases if needed
   accentPrimary: '#FFFFFF',
-  // Vault Item Type Accents
-  note: '#38BDF8',      // Sky Blue for Quick Notes & Ideas
-  snippet: '#A855F7',   // Purple for Code Snippets
-  password: '#F43F5E',  // Rose Red for Encrypted/PIN Passwords
-  checklist: '#10B981', // Emerald for Tasks & Checklists
-  link: '#F59E0B',      // Amber for Saved Links & Bookmarks
-  voice: '#EC4899'      // Pink for Voice Memo Notes
+  note: '#EDEDED',
+  snippet: '#EDEDED',
+  password: '#EDEDED',
+  checklist: '#30A46C',
+  link: '#EDEDED'
 };
 
 export const VAULT_CATEGORIES = [
-  { id: 'ALL', label: '🧠 All Items', color: '#FFFFFF' },
-  { id: 'NOTE', label: '💡 Ideas & Notes', color: '#38BDF8' },
-  { id: 'SNIPPET', label: '💻 Code Snippets', color: '#A855F7' },
-  { id: 'PASSWORD', label: '🔐 Passwords', color: '#F43F5E' },
-  { id: 'CHECKLIST', label: '✅ Tasks & Lists', color: '#10B981' },
-  { id: 'LINK', label: '🔗 Saved Links', color: '#F59E0B' },
-  { id: 'PINNED', label: '📌 Pinned', color: '#FBBF24' }
+  { id: 'ALL', label: 'All' },
+  { id: 'NOTE', label: 'Notes' },
+  { id: 'SNIPPET', label: 'Code' },
+  { id: 'PASSWORD', label: 'Passwords' },
+  { id: 'CHECKLIST', label: 'Tasks' },
+  { id: 'LINK', label: 'Links' },
+  { id: 'PINNED', label: 'Pinned' }
 ];
 
-export const DEFAULT_TAGS = [
-  '#dev',
-  '#ideas',
-  '#passwords',
-  '#goals',
-  '#school',
-  '#work',
-  '#urgent',
-  '#snippets'
-];
+export const DEFAULT_TAGS = ['#personal', '#work', '#code', '#ideas'];

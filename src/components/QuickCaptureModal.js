@@ -1,6 +1,5 @@
 // ============================================================================
-// src/components/QuickCaptureModal.js — Create / edit any vault item type
-// Types: NOTE | SNIPPET | PASSWORD | CHECKLIST | LINK
+// src/components/QuickCaptureModal.js — Modern Minimalist Capture Sheet
 // ============================================================================
 
 import React, { useEffect, useState } from 'react';
@@ -25,11 +24,11 @@ import {
 } from '../utils/helpers';
 
 const TYPES = [
-  { id: 'NOTE', label: '💡 Note', color: COLORS.note },
-  { id: 'SNIPPET', label: '💻 Snippet', color: COLORS.snippet },
-  { id: 'PASSWORD', label: '🔐 Password', color: COLORS.password },
-  { id: 'CHECKLIST', label: '✅ Checklist', color: COLORS.checklist },
-  { id: 'LINK', label: '🔗 Link', color: COLORS.link }
+  { id: 'NOTE', label: 'Note' },
+  { id: 'SNIPPET', label: 'Code' },
+  { id: 'PASSWORD', label: 'Password' },
+  { id: 'CHECKLIST', label: 'Tasks' },
+  { id: 'LINK', label: 'Link' }
 ];
 
 const LANGUAGES = ['javascript', 'typescript', 'python', 'bash', 'sql', 'html', 'css', 'json', 'other'];
@@ -100,15 +99,15 @@ export default function QuickCaptureModal({
   function save() {
     const title = draft.title.trim();
     if (!title) {
-      setError('Give it a title first.');
+      setError('Title is required');
       return;
     }
     if (draft.type === 'PASSWORD' && !draft.secretPassword) {
-      setError('Enter or generate a password.');
+      setError('Password is required');
       return;
     }
     if (draft.type === 'LINK' && !draft.websiteUrl.trim()) {
-      setError('Paste the link URL.');
+      setError('Valid URL is required');
       return;
     }
     let url = draft.websiteUrl.trim();
@@ -125,7 +124,6 @@ export default function QuickCaptureModal({
     });
   }
 
-  const typeMeta = TYPES.find((t) => t.id === draft.type) || TYPES[0];
   const strength = passwordStrength(draft.secretPassword);
 
   return (
@@ -135,16 +133,17 @@ export default function QuickCaptureModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.sheet}>
+          {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{isEdit ? 'Edit Item' : 'Quick Capture'}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <Text style={styles.headerTitle}>{isEdit ? 'Edit Item' : 'New Item'}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>
               <Text style={styles.closeText}>✕</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {/* Type selector (locked while editing) */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+            {/* Type Segmented Control */}
+            <View style={styles.segmentContainer}>
               {TYPES.map((t) => {
                 const active = draft.type === t.id;
                 return (
@@ -152,58 +151,63 @@ export default function QuickCaptureModal({
                     key={t.id}
                     disabled={isEdit}
                     onPress={() => set({ type: t.id, isLocked: t.id === 'PASSWORD' ? true : draft.isLocked })}
-                    style={[
-                      styles.typeChip,
-                      active && { borderColor: t.color, backgroundColor: `${t.color}22` },
-                      isEdit && !active && { opacity: 0.35 }
-                    ]}
+                    style={[styles.segmentBtn, active && styles.segmentBtnActive]}
                   >
-                    <Text style={[styles.typeChipText, active && { color: t.color }]}>{t.label}</Text>
+                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                      {t.label}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </View>
 
-            <Text style={styles.label}>Title</Text>
+            {/* Title */}
+            <Text style={styles.label}>TITLE</Text>
             <TextInput
               style={styles.input}
               placeholder={
                 draft.type === 'PASSWORD'
-                  ? 'e.g. GitHub, GCash, Gmail'
+                  ? 'Service name (e.g. GitHub, Bank)'
                   : draft.type === 'SNIPPET'
-                  ? 'e.g. Fetch with timeout'
+                  ? 'Snippet title'
                   : draft.type === 'CHECKLIST'
-                  ? 'e.g. CraveNav v1.2 tasks'
+                  ? 'Checklist title'
                   : draft.type === 'LINK'
-                  ? 'e.g. Expo EAS docs'
-                  : 'e.g. App idea: SafeCircle'
+                  ? 'Bookmark title'
+                  : 'Note title'
               }
               placeholderTextColor={COLORS.textMuted}
               value={draft.title}
-              onChangeText={(v) => set({ title: v })}
+              onChangeText={(v) => {
+                set({ title: v });
+                setError('');
+              }}
             />
 
-            {/* ---------- SNIPPET ---------- */}
+            {/* SNIPPET */}
             {draft.type === 'SNIPPET' && (
               <>
-                <Text style={styles.label}>Language</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-                  {LANGUAGES.map((l) => (
-                    <TouchableOpacity
-                      key={l}
-                      onPress={() => set({ language: l })}
-                      style={[styles.miniChip, draft.language === l && styles.miniChipActive]}
-                    >
-                      <Text style={[styles.miniChipText, draft.language === l && styles.miniChipTextActive]}>
-                        {l}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                <Text style={styles.label}>LANGUAGE</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.langScroll}>
+                  {LANGUAGES.map((l) => {
+                    const active = draft.language === l;
+                    return (
+                      <TouchableOpacity
+                        key={l}
+                        onPress={() => set({ language: l })}
+                        style={[styles.langChip, active && styles.langChipActive]}
+                      >
+                        <Text style={[styles.langChipText, active && styles.langChipTextActive]}>
+                          {l}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
-                <Text style={styles.label}>Code</Text>
+                <Text style={styles.label}>CODE</Text>
                 <TextInput
                   style={[styles.input, styles.codeInput]}
-                  placeholder="Paste your code here..."
+                  placeholder="// Paste or write code snippet..."
                   placeholderTextColor={COLORS.textMuted}
                   value={draft.content}
                   onChangeText={(v) => set({ content: v })}
@@ -214,60 +218,71 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* ---------- PASSWORD ---------- */}
+            {/* PASSWORD */}
             {draft.type === 'PASSWORD' && (
               <>
-                <Text style={styles.label}>Username / Email</Text>
+                <Text style={styles.label}>USERNAME / EMAIL</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="you@email.com"
+                  placeholder="Username or email address"
                   placeholderTextColor={COLORS.textMuted}
                   value={draft.username}
                   onChangeText={(v) => set({ username: v })}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>PASSWORD</Text>
                 <View style={styles.row}>
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder="Enter or generate"
+                    placeholder="Enter or generate password"
                     placeholderTextColor={COLORS.textMuted}
                     value={draft.secretPassword}
-                    onChangeText={(v) => set({ secretPassword: v })}
+                    onChangeText={(v) => {
+                      set({ secretPassword: v });
+                      setError('');
+                    }}
                     secureTextEntry={!showPw}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
                   <TouchableOpacity style={styles.iconBtn} onPress={() => setShowPw((s) => !s)}>
-                    <Text style={{ fontSize: 16 }}>{showPw ? '🙈' : '👁️'}</Text>
+                    <Text style={styles.iconBtnText}>{showPw ? 'Hide' : 'Show'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.iconBtn, { borderColor: COLORS.password }]}
+                    style={[styles.iconBtn, styles.iconBtnPrimary]}
                     onPress={() => {
                       set({ secretPassword: generatePassword(16) });
                       setShowPw(true);
+                      setError('');
                     }}
                   >
-                    <Text style={{ fontSize: 16 }}>🎲</Text>
+                    <Text style={styles.iconBtnTextPrimary}>Generate</Text>
                   </TouchableOpacity>
                 </View>
+
                 {draft.secretPassword ? (
                   <View style={styles.strengthWrap}>
                     <View style={styles.strengthTrack}>
                       <View
-                        style={[styles.strengthBar, { width: `${strength.pct}%`, backgroundColor: strength.color }]}
+                        style={[
+                          styles.strengthBar,
+                          { width: `${strength.pct}%`, backgroundColor: strength.color }
+                        ]}
                       />
                     </View>
-                    <Text style={[styles.strengthText, { color: strength.color }]}>{strength.label}</Text>
+                    <Text style={[styles.strengthText, { color: strength.color }]}>
+                      {strength.label}
+                    </Text>
                   </View>
                 ) : (
-                  <View style={{ height: 12 }} />
+                  <View style={{ height: 10 }} />
                 )}
-                <Text style={styles.label}>Website (optional)</Text>
+
+                <Text style={styles.label}>WEBSITE (OPTIONAL)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="github.com"
+                  placeholder="e.g. github.com"
                   placeholderTextColor={COLORS.textMuted}
                   value={draft.websiteUrl}
                   onChangeText={(v) => set({ websiteUrl: v })}
@@ -278,16 +293,19 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* ---------- LINK ---------- */}
+            {/* LINK */}
             {draft.type === 'LINK' && (
               <>
                 <Text style={styles.label}>URL</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="https://..."
+                  placeholder="https://example.com"
                   placeholderTextColor={COLORS.textMuted}
                   value={draft.websiteUrl}
-                  onChangeText={(v) => set({ websiteUrl: v })}
+                  onChangeText={(v) => {
+                    set({ websiteUrl: v });
+                    setError('');
+                  }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
@@ -295,35 +313,39 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* ---------- CHECKLIST ---------- */}
+            {/* CHECKLIST */}
             {draft.type === 'CHECKLIST' && (
               <>
-                <Text style={styles.label}>Tasks</Text>
+                <Text style={styles.label}>TASKS</Text>
                 {draft.checklist.map((c) => (
                   <View key={c.id} style={styles.taskRow}>
                     <TouchableOpacity
                       onPress={() =>
                         set({
-                          checklist: draft.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x))
+                          checklist: draft.checklist.map((x) =>
+                            x.id === c.id ? { ...x, done: !x.done } : x
+                          )
                         })
                       }
+                      style={[styles.checkbox, c.done && styles.checkboxDone]}
                     >
-                      <Text style={{ fontSize: 16 }}>{c.done ? '✅' : '⬜'}</Text>
+                      {c.done && <Text style={styles.checkDoneText}>✓</Text>}
                     </TouchableOpacity>
                     <Text style={[styles.taskText, c.done && styles.taskDone]} numberOfLines={2}>
                       {c.text}
                     </Text>
                     <TouchableOpacity
                       onPress={() => set({ checklist: draft.checklist.filter((x) => x.id !== c.id) })}
+                      hitSlop={8}
                     >
-                      <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>✕</Text>
+                      <Text style={styles.taskDeleteText}>✕</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
-                <View style={[styles.row, { marginBottom: 12 }]}>
+                <View style={[styles.row, { marginBottom: 14 }]}>
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder="Add a task and press +"
+                    placeholder="Add task and press Add..."
                     placeholderTextColor={COLORS.textMuted}
                     value={newTask}
                     onChangeText={setNewTask}
@@ -331,24 +353,20 @@ export default function QuickCaptureModal({
                     blurOnSubmit={false}
                     returnKeyType="done"
                   />
-                  <TouchableOpacity style={[styles.iconBtn, { borderColor: COLORS.checklist }]} onPress={addTask}>
-                    <Text style={{ color: COLORS.checklist, fontSize: 18, fontWeight: '800' }}>+</Text>
+                  <TouchableOpacity style={[styles.iconBtn, styles.iconBtnPrimary]} onPress={addTask}>
+                    <Text style={styles.iconBtnTextPrimary}>Add</Text>
                   </TouchableOpacity>
                 </View>
               </>
             )}
 
-            {/* ---------- Notes body (all types except SNIPPET) ---------- */}
+            {/* Body (for NOTE, LINK, or PASSWORD note) */}
             {draft.type !== 'SNIPPET' && (
               <>
-                <Text style={styles.label}>
-                  {draft.type === 'NOTE' ? 'Note' : 'Notes (optional)'}
-                  {'  '}
-                  <Text style={styles.hint}>🎙️ tip: tap your keyboard mic to dictate</Text>
-                </Text>
+                <Text style={styles.label}>{draft.type === 'NOTE' ? 'NOTE' : 'NOTES (OPTIONAL)'}</Text>
                 <TextInput
                   style={[styles.input, styles.multiInput]}
-                  placeholder={draft.type === 'NOTE' ? 'Write or dictate your idea...' : 'Extra details...'}
+                  placeholder={draft.type === 'NOTE' ? 'Write your thoughts...' : 'Additional notes...'}
                   placeholderTextColor={COLORS.textMuted}
                   value={draft.content}
                   onChangeText={(v) => set({ content: v })}
@@ -357,8 +375,8 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* ---------- Tags ---------- */}
-            <Text style={styles.label}>Tags</Text>
+            {/* Tags */}
+            <Text style={styles.label}>TAGS</Text>
             <View style={styles.tagWrap}>
               {allTags.map((t) => {
                 const on = draft.tags.includes(t);
@@ -366,9 +384,9 @@ export default function QuickCaptureModal({
                   <TouchableOpacity
                     key={t}
                     onPress={() => toggleTag(t)}
-                    style={[styles.tagChip, on && { borderColor: typeMeta.color, backgroundColor: `${typeMeta.color}22` }]}
+                    style={[styles.tagChip, on && styles.tagChipActive]}
                   >
-                    <Text style={[styles.tagChipText, on && { color: typeMeta.color }]}>{t}</Text>
+                    <Text style={[styles.tagChipText, on && styles.tagChipTextActive]}>{t}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -376,7 +394,7 @@ export default function QuickCaptureModal({
             <View style={[styles.row, { marginBottom: 14 }]}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder="#new-tag"
+                placeholder="#tag"
                 placeholderTextColor={COLORS.textMuted}
                 value={newTag}
                 onChangeText={setNewTag}
@@ -384,18 +402,18 @@ export default function QuickCaptureModal({
                 autoCapitalize="none"
               />
               <TouchableOpacity style={styles.iconBtn} onPress={addCustomTag}>
-                <Text style={{ color: COLORS.textPrimary, fontSize: 18, fontWeight: '800' }}>+</Text>
+                <Text style={styles.iconBtnText}>+ Tag</Text>
               </TouchableOpacity>
             </View>
 
-            {/* ---------- Toggles ---------- */}
+            {/* Toggles */}
             <View style={styles.toggleRow}>
               <TouchableOpacity
                 style={[styles.toggle, draft.isPinned && styles.toggleOn]}
                 onPress={() => set({ isPinned: !draft.isPinned })}
               >
                 <Text style={[styles.toggleText, draft.isPinned && styles.toggleTextOn]}>
-                  📌 {draft.isPinned ? 'Pinned' : 'Pin to top'}
+                  {draft.isPinned ? '📌 Pinned to top' : 'Pin to top'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -403,20 +421,21 @@ export default function QuickCaptureModal({
                 onPress={() => set({ isLocked: !draft.isLocked })}
               >
                 <Text style={[styles.toggleText, draft.isLocked && styles.toggleTextOn]}>
-                  🔒 {draft.isLocked ? 'PIN Locked' : 'Lock with PIN'}
+                  {draft.isLocked ? '🔒 PIN Protected' : 'Protect with PIN'}
                 </Text>
               </TouchableOpacity>
             </View>
             {draft.isLocked && !hasPin && (
-              <Text style={styles.warn}>No PIN set yet — set one in ⚙️ Settings to protect this item.</Text>
+              <Text style={styles.warn}>Set a master PIN in Settings to lock this item.</Text>
             )}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
+            {/* Save */}
             <TouchableOpacity style={styles.saveBtn} onPress={save} activeOpacity={0.85}>
-              <Text style={styles.saveText}>{isEdit ? 'Save Changes' : 'Save to Vault'}</Text>
+              <Text style={styles.saveText}>{isEdit ? 'Save Changes' : 'Create Item'}</Text>
             </TouchableOpacity>
-            <View style={{ height: 24 }} />
+            <View style={{ height: 28 }} />
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -425,19 +444,32 @@ export default function QuickCaptureModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'flex-end'
+  },
   sheet: {
     maxHeight: '92%',
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 18,
     paddingTop: 16
   },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  headerTitle: { color: COLORS.textPrimary, fontSize: 19, fontWeight: '800' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16
+  },
+  headerTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 18,
+    fontWeight: '700'
+  },
   closeBtn: {
     width: 32,
     height: 32,
@@ -446,105 +478,265 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  closeText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '800' },
-  typeChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 13,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: 8
+  closeText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: '600'
   },
-  typeChipText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
-  label: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 6, letterSpacing: 0.3 },
-  hint: { color: COLORS.textMuted, fontSize: 11, fontWeight: '500' },
+  segmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surfaceElevated,
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 7
+  },
+  segmentBtnActive: {
+    backgroundColor: COLORS.surfaceSubtle
+  },
+  segmentText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  segmentTextActive: {
+    color: COLORS.textPrimary,
+    fontWeight: '700'
+  },
+  label: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 6
+  },
   input: {
     backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
+    borderRadius: 10,
     color: COLORS.textPrimary,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 14,
-    marginBottom: 12
+    marginBottom: 14
   },
-  multiInput: { minHeight: 90, textAlignVertical: 'top' },
+  multiInput: {
+    minHeight: 85,
+    textAlignVertical: 'top'
+  },
   codeInput: {
-    minHeight: 140,
+    minHeight: 120,
     textAlignVertical: 'top',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 12.5,
-    backgroundColor: '#09090D',
-    color: '#E9D5FF'
+    backgroundColor: COLORS.codeBg,
+    color: '#D4D4D8'
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  langScroll: {
+    marginBottom: 12
+  },
+  langChip: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceElevated,
+    marginRight: 6
+  },
+  langChipActive: {
+    borderColor: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceSubtle
+  },
+  langChipText: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '600'
+  },
+  langChipTextActive: {
+    color: COLORS.textPrimary,
+    fontWeight: '700'
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
   iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    height: 42,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  strengthWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 12 },
-  strengthTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: COLORS.border, overflow: 'hidden' },
-  strengthBar: { height: 5, borderRadius: 3 },
-  strengthText: { fontSize: 12, fontWeight: '800', width: 52, textAlign: 'right' },
-  miniChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 11,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: 6
+  iconBtnText: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    fontWeight: '600'
   },
-  miniChipActive: { borderColor: COLORS.snippet, backgroundColor: `${COLORS.snippet}22` },
-  miniChipText: { color: COLORS.textMuted, fontSize: 12, fontWeight: '700' },
-  miniChipTextActive: { color: COLORS.snippet },
+  iconBtnPrimary: {
+    backgroundColor: COLORS.surfaceSubtle,
+    borderColor: COLORS.borderHover
+  },
+  iconBtnTextPrimary: {
+    color: COLORS.textPrimary,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  strengthWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
+    marginBottom: 14
+  },
+  strengthTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    overflow: 'hidden'
+  },
+  strengthBar: {
+    height: 4,
+    borderRadius: 2
+  },
+  strengthText: {
+    fontSize: 11,
+    fontWeight: '700',
+    width: 48,
+    textAlign: 'right'
+  },
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     backgroundColor: COLORS.surfaceElevated,
-    marginBottom: 6
-  },
-  taskText: { flex: 1, color: COLORS.textPrimary, fontSize: 14 },
-  taskDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
-  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 10 },
-  tagChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 11,
-    borderRadius: 999,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: COLORS.border
   },
-  tagChipText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700' },
-  toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  toggle: {
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderHover,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  checkboxDone: {
+    backgroundColor: COLORS.textPrimary,
+    borderColor: COLORS.textPrimary
+  },
+  checkDoneText: {
+    color: '#000000',
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  taskText: {
     flex: 1,
-    paddingVertical: 11,
-    borderRadius: 12,
+    color: COLORS.textPrimary,
+    fontSize: 13
+  },
+  taskDone: {
+    color: COLORS.textMuted,
+    textDecorationLine: 'line-through'
+  },
+  taskDeleteText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    paddingHorizontal: 4
+  },
+  tagWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10
+  },
+  tagChip: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceElevated
+  },
+  tagChipActive: {
+    borderColor: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceSubtle
+  },
+  tagChipText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  tagChipTextActive: {
+    color: COLORS.textPrimary,
+    fontWeight: '700'
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8
+  },
+  toggle: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceElevated,
     alignItems: 'center'
   },
-  toggleOn: { borderColor: COLORS.textPrimary, backgroundColor: COLORS.surfaceElevated },
-  toggleText: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700' },
-  toggleTextOn: { color: COLORS.textPrimary },
-  warn: { color: COLORS.link, fontSize: 12, marginBottom: 8 },
-  error: { color: COLORS.password, fontSize: 13, fontWeight: '700', marginTop: 4, marginBottom: 4 },
-  saveBtn: {
-    backgroundColor: COLORS.accentPrimary,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 8
+  toggleOn: {
+    borderColor: COLORS.borderHover,
+    backgroundColor: COLORS.surfaceSubtle
   },
-  saveText: { color: '#000', fontSize: 15, fontWeight: '800' }
+  toggleText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  toggleTextOn: {
+    color: COLORS.textPrimary,
+    fontWeight: '700'
+  },
+  warn: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    marginBottom: 8
+  },
+  error: {
+    color: COLORS.danger,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8
+  },
+  saveBtn: {
+    backgroundColor: COLORS.textPrimary,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginTop: 6
+  },
+  saveText: {
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '700'
+  }
 });
