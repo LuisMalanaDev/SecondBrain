@@ -2,12 +2,15 @@
   "expo": {
     "name": "SecondBrain Vault",
     "owner": "luismalana0428",
-    "slug": "second-brain-vault",
+    "slug": "secondbrain",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#000000"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#161C2A"
     },
     "ios": {
       "supportsTablet": true,
@@ -17,13 +20,17 @@
       "package": "com.luismalana.secondbrainvault",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#000000"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#161C2A"
       },
       "permissions": [
-        "VIBRATE",
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
-        "RECORD_AUDIO"
+        "android.permission.VIBRATE",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "plugins": [
@@ -31,7 +38,13 @@
       "expo-sqlite",
       "expo-secure-store",
       "expo-audio",
-      "expo-sharing"
-    ]
+      "expo-sharing",
+      "expo-image-picker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5803b085-e479-4927-a440-eaef8bf485f3"
+      }
+    }
   }
 }
