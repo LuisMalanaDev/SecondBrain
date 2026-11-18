@@ -15,7 +15,8 @@ import {
   StatusBar as RNStatusBar,
   Platform,
   Animated,
-  AppState
+  AppState,
+  Share
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
@@ -40,12 +41,14 @@ import {
   filterItems,
   computeStats,
   computeExpenseStats,
+  formatShareText,
   hapticTap
 } from './src/utils/helpers';
 
 import SectionDropdown from './src/components/SectionDropdown';
 import HomeSection from './src/components/HomeSection';
 import ExpensesSection from './src/components/ExpensesSection';
+import AnalyticsSection from './src/components/AnalyticsSection';
 import VaultItemCard from './src/components/VaultItemCard';
 import QuickCaptureModal from './src/components/QuickCaptureModal';
 import PinLockModal from './src/components/PinLockModal';
@@ -320,6 +323,18 @@ export default function App() {
     [settings.autoClearClipboard, showToast]
   );
 
+  const handleShareItem = useCallback(async (item) => {
+    const message = formatShareText(item);
+    if (!message) return;
+    hapticTap('light');
+    try {
+      await Share.share({
+        title: item.title || 'SecondBrain Vault',
+        message
+      });
+    } catch (e) {}
+  }, []);
+
   // PIN Gating & Unlock
   const requestUnlock = useCallback(
     (actionCallback) => {
@@ -455,13 +470,20 @@ export default function App() {
       return;
     }
     const defaultType =
-      activeSection !== 'HOME' && activeSection !== 'PINNED' ? activeSection : 'NOTE';
+      activeSection !== 'HOME' &&
+      activeSection !== 'ANALYTICS' &&
+      activeSection !== 'PINNED'
+        ? activeSection
+        : 'NOTE';
     openQuickCapture(defaultType);
   };
 
   const activeSectionMeta =
     VAULT_SECTIONS.find((s) => s.id === activeSection) || VAULT_SECTIONS[0];
-  const isItemSection = activeSection !== 'HOME' && activeSection !== 'EXPENSES';
+  const isItemSection =
+    activeSection !== 'HOME' &&
+    activeSection !== 'EXPENSES' &&
+    activeSection !== 'ANALYTICS';
 
   if (!isLoaded) {
     return (
@@ -546,11 +568,22 @@ export default function App() {
       {/* HOME SECTION */}
       {activeSection === 'HOME' && (
         <HomeSection
+          items={items}
+          expenses={expenses}
           stats={stats}
           expenseStats={expenseStats}
           hasPin={Boolean(pinCode)}
+          sessionUnlocked={sessionUnlocked}
           onSelectSection={handleSelectSection}
           onOpenSettings={() => setSettingsVisible(true)}
+          onRequestUnlock={requestUnlock}
+          onOpenDetail={(it) => setDetailItemId(it.id)}
+          onToggleTask={handleToggleTask}
+          onTogglePin={handleTogglePin}
+          onEdit={openEdit}
+          onDelete={handleDeleteItem}
+          onCopy={handleCopy}
+          onShare={handleShareItem}
         />
       )}
 
@@ -563,6 +596,15 @@ export default function App() {
           onClearAll={handleClearExpenses}
           externalModalTrigger={expenseModalTrigger}
           onExternalTriggerHandled={() => setExpenseModalTrigger(null)}
+        />
+      )}
+
+      {/* ANALYTICS SECTION */}
+      {activeSection === 'ANALYTICS' && (
+        <AnalyticsSection
+          expenses={expenses}
+          stats={stats}
+          onSelectSection={handleSelectSection}
         />
       )}
 
@@ -608,6 +650,7 @@ export default function App() {
                 onEdit={openEdit}
                 onDelete={handleDeleteItem}
                 onCopy={handleCopy}
+                onShare={handleShareItem}
               />
             )}
             contentContainerStyle={styles.listContent}
@@ -653,12 +696,14 @@ export default function App() {
       )}
 
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.85}>
-        <Feather name="plus" size={16} color="#000000" />
-        <Text style={styles.fabText}>
-          {activeSection === 'EXPENSES' ? 'Expense' : 'New'}
-        </Text>
-      </TouchableOpacity>
+      {activeSection !== 'ANALYTICS' && (
+        <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.85}>
+          <Feather name="plus" size={16} color="#000000" />
+          <Text style={styles.fabText}>
+            {activeSection === 'EXPENSES' ? 'Expense' : 'New'}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* Toast */}
       {toastText && (
@@ -688,6 +733,7 @@ export default function App() {
         onToggleTask={handleToggleTask}
         onRequestUnlock={requestUnlock}
         onCopy={handleCopy}
+        onShare={handleShareItem}
       />
 
       {/* Quick Capture / Edit Modal */}

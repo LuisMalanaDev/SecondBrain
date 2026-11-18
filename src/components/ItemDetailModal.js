@@ -41,7 +41,8 @@ export default function ItemDetailModal({
   onTogglePin,
   onToggleTask,
   onRequestUnlock,
-  onCopy
+  onCopy,
+  onShare
 }) {
   const [revealPw, setRevealPw] = useState(false);
   const [zoomUri, setZoomUri] = useState(null);
@@ -82,6 +83,16 @@ export default function ItemDetailModal({
           </TouchableOpacity>
 
           <View style={styles.topActions}>
+            {(item.type === 'NOTE' || item.type === 'CHECKLIST' || item.type === 'LINK') && onShare ? (
+              <TouchableOpacity
+                onPress={withUnlock(() => onShare(item))}
+                style={styles.iconBtn}
+                hitSlop={8}
+              >
+                <Feather name="share-2" size={17} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
               onPress={() => {
                 hapticTap('light');

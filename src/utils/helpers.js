@@ -1,5 +1,5 @@
 // ============================================================================
-// src/utils/helpers.js — IDs, currency formatting, password generator & filters
+// src/utils/helpers.js — IDs, currency, dates, sharing, haptics & filters
 // ============================================================================
 
 import * as Haptics from 'expo-haptics';
@@ -12,6 +12,43 @@ export function nowIso() {
   return new Date().toISOString();
 }
 
+export function toLocalDateKey(input = new Date()) {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return toLocalDateKey(new Date());
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function dateKeyToIso(dateKey) {
+  const [y, m, d] = (dateKey || '').split('-').map(Number);
+  if (!y || !m || !d) return nowIso();
+  const now = new Date();
+  const target = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+  return target.toISOString();
+}
+
+export function addDaysToDateKey(dateKey, delta) {
+  const [y, m, d] = (dateKey || '').split('-').map(Number);
+  const base = y && m && d ? new Date(y, m - 1, d) : new Date();
+  base.setDate(base.getDate() + delta);
+  return toLocalDateKey(base);
+}
+
+export function formatShortDate(input) {
+  if (!input) return '';
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(String(input)) ? input : toLocalDateKey(input);
+  const todayKey = toLocalDateKey(new Date());
+  const yestKey = addDaysToDateKey(todayKey, -1);
+  if (key === todayKey) return 'Today';
+  if (key === yestKey) return 'Yesterday';
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
+}
+
 export function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -19,7 +56,7 @@ export function formatDate(iso) {
   const sameDay = d.toDateString() === today.toDateString();
   const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (sameDay) return `Today • ${time}`;
-  return `${d.toLocaleDateString()} • ${time}`;
+  return `${formatShortDate(d)} • ${time}`;
 }
 
 export function formatDuration(ms = 0) {
@@ -52,6 +89,22 @@ export function extractDomain(url = '') {
 export function isLikelyUrl(text = '') {
   const trimmed = text.trim();
   return /^https?:\/\/[^\s]+$/i.test(trimmed);
+}
+
+export function formatShareText(item) {
+  if (!item) return '';
+  if (item.type === 'CHECKLIST') {
+    const list = item.checklist || [];
+    const done = list.filter((c) => c.done).length;
+    const lines = list.map((c) => `${c.done ? '[✓]' : '[ ]'} ${c.text}`).join('\n');
+    const note = item.content ? `\n\n${item.content}` : '';
+    return `${item.title} (${done}/${list.length})\n\n${lines}${note}`.trim();
+  }
+  if (item.type === 'LINK') {
+    const parts = [item.title, item.websiteUrl, item.content].filter(Boolean);
+    return parts.join('\n\n');
+  }
+  return [item.title, item.content].filter(Boolean).join('\n\n');
 }
 
 export function hapticTap(level = 'light') {
@@ -120,7 +173,7 @@ export function filterItems(items, { query = '', category = 'NOTE' }) {
     .filter((it) => {
       if (category === 'PINNED') {
         if (!it.isPinned) return false;
-      } else if (category !== 'HOME' && category !== 'EXPENSES') {
+      } else if (category !== 'HOME' && category !== 'EXPENSES' && category !== 'ANALYTICS') {
         if (it.type !== category) return false;
       }
       if (!q) return true;

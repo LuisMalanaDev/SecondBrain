@@ -37,7 +37,8 @@ function VaultItemCard({
   onTogglePin,
   onEdit,
   onDelete,
-  onCopy
+  onCopy,
+  onShare
 }) {
   const [revealPw, setRevealPw] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -291,6 +292,17 @@ function VaultItemCard({
             >
               <Feather name="copy" size={12} color={COLORS.textPrimary} />
               <Text style={styles.actionBtnText}>Copy</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {(item.type === 'NOTE' || item.type === 'CHECKLIST' || item.type === 'LINK') && onShare ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={withUnlock(() => onShare(item))}
+              hitSlop={6}
+            >
+              <Feather name="share-2" size={12} color={COLORS.textPrimary} />
+              <Text style={styles.actionBtnText}>Share</Text>
             </TouchableOpacity>
           ) : null}
 

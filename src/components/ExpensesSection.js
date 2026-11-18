@@ -1,5 +1,5 @@
 // ============================================================================
-// src/components/ExpensesSection.js — Minimalist Cash & Expense Tracker
+// src/components/ExpensesSection.js — Cash & Expense Tracker with Date Filters
 // ============================================================================
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -20,16 +20,34 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import {
   makeId,
-  nowIso,
+  toLocalDateKey,
+  dateKeyToIso,
+  addDaysToDateKey,
+  formatShortDate,
   formatDate,
   formatPeso,
   computeExpenseStats,
   hapticTap,
   hapticNotify
 } from '../utils/helpers';
+import DatePickerModal from './DatePickerModal';
 
 const EXPENSE_CATEGORIES = ['Transpo', 'Food', 'Bills', 'Load', 'Shopping', 'Other'];
 const CASH_PRESETS = [100, 500, 1000, 2000, 5000];
+
+const DATE_FILTERS = [
+  { id: 'ALL', label: 'All Dates' },
+  { id: 'TODAY', label: 'Today' },
+  { id: 'WEEK', label: 'This Week' },
+  { id: 'MONTH', label: 'This Month' },
+  { id: 'CUSTOM', label: 'Pick Date' }
+];
+
+const KIND_FILTERS = [
+  { id: 'ALL', label: 'All' },
+  { id: 'CASH_IN', label: 'Cash Added' },
+  { id: 'EXPENSE', label: 'Expenses' }
+];
 
 export default function ExpensesSection({
   expenses = [],
@@ -39,14 +57,51 @@ export default function ExpensesSection({
   externalModalTrigger,
   onExternalTriggerHandled
 }) {
+  // Filters
+  const [dateFilter, setDateFilter] = useState('ALL');
+  const [customFilterDate, setCustomFilterDate] = useState(toLocalDateKey(new Date()));
+  const [filterCalendarOpen, setFilterCalendarOpen] = useState(false);
+  const [kindFilter, setKindFilter] = useState('ALL');
+
+  // Entry Modal
   const [modalVisible, setModalVisible] = useState(false);
-  const [kind, setKind] = useState('EXPENSE'); // 'CASH_IN' | 'EXPENSE'
+  const [kind, setKind] = useState('EXPENSE');
   const [amountText, setAmountText] = useState('');
   const [titleText, setTitleText] = useState('');
   const [category, setCategory] = useState('Transpo');
+  const [entryDateKey, setEntryDateKey] = useState(toLocalDateKey(new Date()));
+  const [entryCalendarOpen, setEntryCalendarOpen] = useState(false);
   const [error, setError] = useState('');
 
-  const stats = useMemo(() => computeExpenseStats(expenses), [expenses]);
+  const overallStats = useMemo(() => computeExpenseStats(expenses), [expenses]);
+
+  const markedDateKeys = useMemo(
+    () => Array.from(new Set(expenses.map((e) => toLocalDateKey(e.createdAt)))),
+    [expenses]
+  );
+
+  const filteredExpenses = useMemo(() => {
+    const todayKey = toLocalDateKey(new Date());
+    const weekStartKey = addDaysToDateKey(todayKey, -6);
+    const monthPrefix = todayKey.slice(0, 7); // YYYY-MM
+
+    return [...expenses]
+      .filter((item) => {
+        if (kindFilter !== 'ALL' && item.kind !== kindFilter) return false;
+        const itemKey = toLocalDateKey(item.createdAt);
+        if (dateFilter === 'TODAY') return itemKey === todayKey;
+        if (dateFilter === 'WEEK') return itemKey >= weekStartKey && itemKey <= todayKey;
+        if (dateFilter === 'MONTH') return itemKey.startsWith(monthPrefix);
+        if (dateFilter === 'CUSTOM') return itemKey === customFilterDate;
+        return true;
+      })
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }, [expenses, kindFilter, dateFilter, customFilterDate]);
+
+  const filteredStats = useMemo(
+    () => computeExpenseStats(filteredExpenses),
+    [filteredExpenses]
+  );
 
   const openModal = (targetKind = 'EXPENSE') => {
     hapticTap('light');
@@ -54,6 +109,7 @@ export default function ExpensesSection({
     setAmountText('');
     setTitleText('');
     setCategory('Transpo');
+    setEntryDateKey(dateFilter === 'CUSTOM' ? customFilterDate : toLocalDateKey(new Date()));
     setError('');
     setModalVisible(true);
   };
@@ -66,7 +122,6 @@ export default function ExpensesSection({
   }, [externalModalTrigger, onExternalTriggerHandled]);
 
   function handleAmountChange(raw) {
-    // Allow digits and at most one decimal dot
     const cleaned = raw.replace(/[^0-9.]/g, '');
     const parts = cleaned.split('.');
     const normalized =
@@ -94,7 +149,7 @@ export default function ExpensesSection({
       amount: Math.round(num * 100) / 100,
       title: label,
       category: kind === 'CASH_IN' ? 'Cash' : category,
-      createdAt: nowIso()
+      createdAt: dateKeyToIso(entryDateKey)
     });
 
     setModalVisible(false);
@@ -131,18 +186,25 @@ export default function ExpensesSection({
   const parsedInput = parseFloat(amountText) || 0;
   const previewBalance =
     kind === 'CASH_IN'
-      ? stats.balance + parsedInput
-      : stats.balance - parsedInput;
+      ? overallStats.balance + parsedInput
+      : overallStats.balance - parsedInput;
 
   const remainingRatio =
-    stats.totalCashIn > 0
-      ? Math.max(0, Math.min(100, Math.round((stats.balance / stats.totalCashIn) * 100)))
+    overallStats.totalCashIn > 0
+      ? Math.max(
+          0,
+          Math.min(100, Math.round((overallStats.balance / overallStats.totalCashIn) * 100))
+        )
       : 0;
+
+  const todayKey = toLocalDateKey(new Date());
+  const yestKey = addDaysToDateKey(todayKey, -1);
+  const hasActiveFilter = dateFilter !== 'ALL' || kindFilter !== 'ALL';
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={expenses}
+        data={filteredExpenses}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -154,13 +216,13 @@ export default function ExpensesSection({
               <Text
                 style={[
                   styles.balanceAmount,
-                  stats.balance < 0 && { color: COLORS.danger }
+                  overallStats.balance < 0 && { color: COLORS.danger }
                 ]}
               >
-                {formatPeso(stats.balance)}
+                {formatPeso(overallStats.balance)}
               </Text>
 
-              {stats.totalCashIn > 0 && (
+              {overallStats.totalCashIn > 0 && (
                 <View style={styles.progressTrack}>
                   <View
                     style={[styles.progressFill, { width: `${remainingRatio}%` }]}
@@ -172,7 +234,7 @@ export default function ExpensesSection({
                 <View style={styles.metricBox}>
                   <Text style={styles.metricLabel}>CASH ADDED</Text>
                   <Text style={styles.metricValue}>
-                    {formatPeso(stats.totalCashIn)}
+                    {formatPeso(overallStats.totalCashIn)}
                   </Text>
                 </View>
 
@@ -181,7 +243,7 @@ export default function ExpensesSection({
                 <View style={styles.metricBox}>
                   <Text style={styles.metricLabel}>TOTAL SPENT</Text>
                   <Text style={styles.metricValue}>
-                    {formatPeso(stats.totalSpent)}
+                    {formatPeso(overallStats.totalSpent)}
                   </Text>
                 </View>
               </View>
@@ -208,13 +270,114 @@ export default function ExpensesSection({
               </View>
             </View>
 
-            {/* Transactions Header */}
+            {/* Filter Bar (Type + Date) */}
             {expenses.length > 0 && (
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderText}>HISTORY</Text>
-                <TouchableOpacity onPress={confirmReset} hitSlop={8}>
-                  <Text style={styles.resetText}>Reset</Text>
-                </TouchableOpacity>
+              <View style={styles.filtersWrap}>
+                {/* Type Pills */}
+                <View style={styles.kindRow}>
+                  {KIND_FILTERS.map((kf) => {
+                    const active = kindFilter === kf.id;
+                    return (
+                      <TouchableOpacity
+                        key={kf.id}
+                        style={[styles.kindPill, active && styles.kindPillActive]}
+                        onPress={() => {
+                          hapticTap('light');
+                          setKindFilter(kf.id);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.kindPillText,
+                            active && styles.kindPillTextActive
+                          ]}
+                        >
+                          {kf.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Date Pills */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dateFilterScroll}
+                >
+                  {DATE_FILTERS.map((df) => {
+                    const active = dateFilter === df.id;
+                    const label =
+                      df.id === 'CUSTOM' && active
+                        ? formatShortDate(customFilterDate)
+                        : df.label;
+                    return (
+                      <TouchableOpacity
+                        key={df.id}
+                        style={[
+                          styles.datePill,
+                          active && styles.datePillActive
+                        ]}
+                        onPress={() => {
+                          hapticTap('light');
+                          if (df.id === 'CUSTOM') {
+                            setFilterCalendarOpen(true);
+                          } else {
+                            setDateFilter(df.id);
+                          }
+                        }}
+                      >
+                        {df.id === 'CUSTOM' && (
+                          <Feather
+                            name="calendar"
+                            size={11}
+                            color={active ? '#000000' : COLORS.textMuted}
+                          />
+                        )}
+                        <Text
+                          style={[
+                            styles.datePillText,
+                            active && styles.datePillTextActive
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Filtered Subtotal Strip */}
+                {hasActiveFilter && (
+                  <View style={styles.filteredStrip}>
+                    <Text style={styles.filteredStripText}>
+                      {filteredExpenses.length}{' '}
+                      {filteredExpenses.length === 1 ? 'record' : 'records'}
+                      {kindFilter !== 'EXPENSE'
+                        ? ` • +${formatPeso(filteredStats.totalCashIn)} cash`
+                        : ''}
+                      {kindFilter !== 'CASH_IN'
+                        ? ` • -${formatPeso(filteredStats.totalSpent)} spent`
+                        : ''}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setDateFilter('ALL');
+                        setKindFilter('ALL');
+                      }}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.clearFilterText}>Reset</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderText}>HISTORY</Text>
+                  <TouchableOpacity onPress={confirmReset} hitSlop={8}>
+                    <Text style={styles.resetText}>Clear All</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </>
@@ -223,12 +386,7 @@ export default function ExpensesSection({
           const isCashIn = item.kind === 'CASH_IN';
           return (
             <View style={styles.txRow}>
-              <View
-                style={[
-                  styles.txIconBox,
-                  isCashIn && styles.txIconBoxCash
-                ]}
-              >
+              <View style={[styles.txIconBox, isCashIn && styles.txIconBoxCash]}>
                 <Feather
                   name={isCashIn ? 'arrow-down-left' : 'arrow-up-right'}
                   size={15}
@@ -246,12 +404,7 @@ export default function ExpensesSection({
                 </Text>
               </View>
 
-              <Text
-                style={[
-                  styles.txAmount,
-                  isCashIn && { color: COLORS.success }
-                ]}
-              >
+              <Text style={[styles.txAmount, isCashIn && { color: COLORS.success }]}>
                 {isCashIn ? '+' : '-'}
                 {formatPeso(item.amount)}
               </Text>
@@ -268,14 +421,35 @@ export default function ExpensesSection({
         }}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Feather name="credit-card" size={24} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>No cash or expenses yet</Text>
+            <Feather
+              name={hasActiveFilter ? 'calendar' : 'credit-card'}
+              size={24}
+              color={COLORS.textMuted}
+            />
+            <Text style={styles.emptyTitle}>
+              {hasActiveFilter ? 'No matching records' : 'No cash or expenses yet'}
+            </Text>
             <Text style={styles.emptySub}>
-              Tap "Add Cash" to enter your current cash (e.g. ₱2,000), then add expenses
-              like ₱20 pamasahe to automatically deduct.
+              {hasActiveFilter
+                ? 'Try selecting All Dates or switching between Cash Added and Expenses.'
+                : 'Tap "Add Cash" to enter your current cash (e.g. ₱2,000), then add expenses like ₱20 pamasahe to automatically deduct.'}
             </Text>
           </View>
         }
+      />
+
+      {/* Filter Date Calendar Picker */}
+      <DatePickerModal
+        visible={filterCalendarOpen}
+        selectedDateKey={customFilterDate}
+        markedDateKeys={markedDateKeys}
+        title="Filter by Date"
+        onSelect={(key) => {
+          setCustomFilterDate(key);
+          setDateFilter('CUSTOM');
+          setFilterCalendarOpen(false);
+        }}
+        onClose={() => setFilterCalendarOpen(false)}
       />
 
       {/* Add Cash / Expense Modal */}
@@ -314,9 +488,7 @@ export default function ExpensesSection({
                     setError('');
                   }}
                 >
-                  <Text
-                    style={[styles.segText, kind === 'CASH_IN' && styles.segTextActive]}
-                  >
+                  <Text style={[styles.segText, kind === 'CASH_IN' && styles.segTextActive]}>
                     + Add Cash
                   </Text>
                 </TouchableOpacity>
@@ -328,15 +500,13 @@ export default function ExpensesSection({
                     setError('');
                   }}
                 >
-                  <Text
-                    style={[styles.segText, kind === 'EXPENSE' && styles.segTextActive]}
-                  >
+                  <Text style={[styles.segText, kind === 'EXPENSE' && styles.segTextActive]}>
                     - Expense
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Amount Input */}
+              {/* Amount */}
               <Text style={styles.inputLabel}>AMOUNT (PESOS)</Text>
               <View style={styles.amountInputWrap}>
                 <Text style={styles.pesoPrefix}>₱</Text>
@@ -390,12 +560,7 @@ export default function ExpensesSection({
                             setCategory(cat);
                           }}
                         >
-                          <Text
-                            style={[
-                              styles.catChipText,
-                              active && styles.catChipTextActive
-                            ]}
-                          >
+                          <Text style={[styles.catChipText, active && styles.catChipTextActive]}>
                             {cat}
                           </Text>
                         </TouchableOpacity>
@@ -404,6 +569,85 @@ export default function ExpensesSection({
                   </View>
                 </>
               )}
+
+              {/* Date Selector */}
+              <Text style={styles.inputLabel}>DATE</Text>
+              <View style={styles.entryDateRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.entryDateChip,
+                    entryDateKey === todayKey && styles.entryDateChipActive
+                  ]}
+                  onPress={() => {
+                    hapticTap('light');
+                    setEntryDateKey(todayKey);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.entryDateChipText,
+                      entryDateKey === todayKey && styles.entryDateChipTextActive
+                    ]}
+                  >
+                    Today
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.entryDateChip,
+                    entryDateKey === yestKey && styles.entryDateChipActive
+                  ]}
+                  onPress={() => {
+                    hapticTap('light');
+                    setEntryDateKey(yestKey);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.entryDateChipText,
+                      entryDateKey === yestKey && styles.entryDateChipTextActive
+                    ]}
+                  >
+                    Yesterday
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.entryDateChip,
+                    { flex: 1, justifyContent: 'center' },
+                    entryDateKey !== todayKey &&
+                      entryDateKey !== yestKey &&
+                      styles.entryDateChipActive
+                  ]}
+                  onPress={() => {
+                    hapticTap('light');
+                    setEntryCalendarOpen(true);
+                  }}
+                >
+                  <Feather
+                    name="calendar"
+                    size={12}
+                    color={
+                      entryDateKey !== todayKey && entryDateKey !== yestKey
+                        ? COLORS.textPrimary
+                        : COLORS.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.entryDateChipText,
+                      entryDateKey !== todayKey &&
+                        entryDateKey !== yestKey &&
+                        styles.entryDateChipTextActive
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {formatShortDate(entryDateKey)}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Description */}
               <Text style={styles.inputLabel}>
@@ -438,11 +682,7 @@ export default function ExpensesSection({
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={handleSave}
-                activeOpacity={0.85}
-              >
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
                 <Text style={styles.saveBtnText}>
                   {kind === 'CASH_IN'
                     ? parsedInput > 0
@@ -457,6 +697,19 @@ export default function ExpensesSection({
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+
+        {/* Entry Date Calendar Picker */}
+        <DatePickerModal
+          visible={entryCalendarOpen}
+          selectedDateKey={entryDateKey}
+          markedDateKeys={markedDateKeys}
+          title="Select Entry Date"
+          onSelect={(key) => {
+            setEntryDateKey(key);
+            setEntryCalendarOpen(false);
+          }}
+          onClose={() => setEntryCalendarOpen(false)}
+        />
       </Modal>
     </View>
   );
@@ -477,7 +730,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 18,
     padding: 18,
-    marginBottom: 18
+    marginBottom: 14
   },
   balanceLabel: {
     fontSize: 10,
@@ -572,6 +825,86 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000000'
   },
+  filtersWrap: {
+    marginBottom: 6
+  },
+  kindRow: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 3,
+    marginBottom: 10
+  },
+  kindPill: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 7,
+    alignItems: 'center'
+  },
+  kindPillActive: {
+    backgroundColor: COLORS.surfaceElevated
+  },
+  kindPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted
+  },
+  kindPillTextActive: {
+    color: COLORS.textPrimary,
+    fontWeight: '700'
+  },
+  dateFilterScroll: {
+    gap: 7,
+    paddingBottom: 10
+  },
+  datePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border
+  },
+  datePillActive: {
+    backgroundColor: COLORS.textPrimary,
+    borderColor: COLORS.textPrimary
+  },
+  datePillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary
+  },
+  datePillTextActive: {
+    color: '#000000',
+    fontWeight: '700'
+  },
+  filteredStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12
+  },
+  filteredStripText: {
+    fontSize: 11.5,
+    color: COLORS.textSecondary,
+    fontWeight: '600'
+  },
+  clearFilterText: {
+    fontSize: 11.5,
+    color: COLORS.textPrimary,
+    fontWeight: '700'
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -665,7 +998,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     paddingHorizontal: 18,
     paddingTop: 16,
-    maxHeight: '88%'
+    maxHeight: '90%'
   },
   modalHeader: {
     flexDirection: 'row',
@@ -784,6 +1117,35 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted
   },
   catChipTextActive: {
+    color: COLORS.textPrimary,
+    fontWeight: '700'
+  },
+  entryDateRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14
+  },
+  entryDateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 9
+  },
+  entryDateChipActive: {
+    borderColor: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceSubtle
+  },
+  entryDateChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted
+  },
+  entryDateChipTextActive: {
     color: COLORS.textPrimary,
     fontWeight: '700'
   },

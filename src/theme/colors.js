@@ -29,12 +29,13 @@ export const COLORS = {
 };
 
 export const VAULT_SECTIONS = [
-  { id: 'HOME', label: 'Home', description: 'App guide & overview', icon: 'home' },
+  { id: 'HOME', label: 'Home', description: 'App guide & global search', icon: 'home' },
   { id: 'EXPENSES', label: 'Expenses', description: 'Cash on hand & daily spending', icon: 'credit-card' },
+  { id: 'ANALYTICS', label: 'Analytics', description: 'Cash flow & spending insights', icon: 'bar-chart-2' },
   { id: 'NOTE', label: 'Notes', description: 'Private notes & photos', icon: 'file-text' },
   { id: 'VOICE', label: 'Voice', description: 'Offline voice memos', icon: 'mic' },
   { id: 'PASSWORD', label: 'Passwords', description: 'PIN-locked credentials', icon: 'lock' },
   { id: 'CHECKLIST', label: 'Tasks', description: 'Interactive checklists', icon: 'check-square' },
   { id: 'LINK', label: 'Links', description: 'Saved videos & bookmarks', icon: 'link-2' },
-  { id: 'PINNED', label: 'Pinned', description: 'Starred vault items', icon: 'bookmark' }
+  { id: 'PINNED', label: 'Pinned', description: 'Bookmarked vault items', icon: 'bookmark' }
 ];
