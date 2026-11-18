@@ -1,5 +1,5 @@
 // ============================================================================
-// src/utils/helpers.js — IDs, timestamps, password generator, haptics & filters
+// src/utils/helpers.js — IDs, currency formatting, password generator & filters
 // ============================================================================
 
 import * as Haptics from 'expo-haptics';
@@ -29,12 +29,21 @@ export function formatDuration(ms = 0) {
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
+export function formatPeso(num = 0) {
+  const n = Number(num) || 0;
+  const abs = Math.abs(n);
+  const hasDecimals = Math.round(abs * 100) % 100 !== 0;
+  const fixed = hasDecimals ? abs.toFixed(2) : Math.round(abs).toString();
+  const [intPart, decPart] = fixed.split('.');
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${n < 0 ? '-' : ''}₱${withCommas}${decPart ? `.${decPart}` : ''}`;
+}
+
 export function extractDomain(url = '') {
   if (!url) return '';
   try {
     const clean = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    const host = new URL(clean).hostname.replace(/^www\./i, '');
-    return host;
+    return new URL(clean).hostname.replace(/^www\./i, '');
   } catch (e) {
     return url.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0];
   }
@@ -105,26 +114,21 @@ export function passwordStrength(pw = '') {
   return { label: 'Strong', color: '#FFFFFF', pct: 100 };
 }
 
-export function normalizeTag(raw = '') {
-  const t = raw.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^#a-z0-9_-]/g, '');
-  if (!t || t === '#') return '';
-  return t.startsWith('#') ? t : `#${t}`;
-}
-
-export function filterItems(items, { query = '', category = 'ALL', tag = null }) {
+export function filterItems(items, { query = '', category = 'NOTE' }) {
   const q = query.trim().toLowerCase();
   return items
     .filter((it) => {
-      if (category === 'PINNED' && !it.isPinned) return false;
-      if (category !== 'ALL' && category !== 'PINNED' && it.type !== category) return false;
-      if (tag && !(it.tags || []).includes(tag)) return false;
+      if (category === 'PINNED') {
+        if (!it.isPinned) return false;
+      } else if (category !== 'HOME' && category !== 'EXPENSES') {
+        if (it.type !== category) return false;
+      }
       if (!q) return true;
       const hay = [
         it.title,
         it.isLocked ? '' : it.content,
         it.username,
         it.websiteUrl,
-        ...(it.tags || []),
         ...(it.checklist || []).map((c) => c.text)
       ]
         .join(' ')
@@ -149,11 +153,28 @@ export function computeStats(items) {
   return {
     total: items.length,
     pinned: items.filter((i) => i.isPinned).length,
+    notes: items.filter((i) => i.type === 'NOTE').length,
     voiceMemos: items.filter((i) => i.type === 'VOICE').length,
     passwords: items.filter((i) => i.type === 'PASSWORD').length,
+    checklists: items.filter((i) => i.type === 'CHECKLIST').length,
     links: items.filter((i) => i.type === 'LINK').length,
     tasksTotal,
     tasksDone
+  };
+}
+
+export function computeExpenseStats(expenses = []) {
+  let totalCashIn = 0;
+  let totalSpent = 0;
+  expenses.forEach((e) => {
+    const amt = Number(e.amount) || 0;
+    if (e.kind === 'CASH_IN') totalCashIn += amt;
+    else totalSpent += amt;
+  });
+  return {
+    totalCashIn,
+    totalSpent,
+    balance: totalCashIn - totalSpent
   };
 }
 

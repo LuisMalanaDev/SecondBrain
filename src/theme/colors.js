@@ -1,5 +1,5 @@
 // ============================================================================
-// src/theme/colors.js — Modern Minimalist Monochrome Theme
+// src/theme/colors.js — Modern Minimalist Monochrome Theme & Sections
 // ============================================================================
 
 export const COLORS = {
@@ -15,12 +15,11 @@ export const COLORS = {
   textMuted: '#585860',
   accent: '#FFFFFF',
   accentSubtle: '#27272D',
-  // Restrained semantic accents (used sparingly)
+  // Restrained semantic accents
   success: '#30A46C',
   danger: '#E5484D',
   badgeBg: '#161619',
   badgeText: '#A1A1AA',
-  // Monochrome compatibility aliases
   accentPrimary: '#FFFFFF',
   note: '#EDEDED',
   voice: '#EDEDED',
@@ -29,14 +28,13 @@ export const COLORS = {
   link: '#EDEDED'
 };
 
-export const VAULT_CATEGORIES = [
-  { id: 'ALL', label: 'All' },
-  { id: 'NOTE', label: 'Notes' },
-  { id: 'VOICE', label: 'Voice' },
-  { id: 'PASSWORD', label: 'Passwords' },
-  { id: 'CHECKLIST', label: 'Tasks' },
-  { id: 'LINK', label: 'Links' },
-  { id: 'PINNED', label: 'Pinned' }
+export const VAULT_SECTIONS = [
+  { id: 'HOME', label: 'Home', description: 'App guide & overview', icon: 'home' },
+  { id: 'EXPENSES', label: 'Expenses', description: 'Cash on hand & daily spending', icon: 'credit-card' },
+  { id: 'NOTE', label: 'Notes', description: 'Private notes & photos', icon: 'file-text' },
+  { id: 'VOICE', label: 'Voice', description: 'Offline voice memos', icon: 'mic' },
+  { id: 'PASSWORD', label: 'Passwords', description: 'PIN-locked credentials', icon: 'lock' },
+  { id: 'CHECKLIST', label: 'Tasks', description: 'Interactive checklists', icon: 'check-square' },
+  { id: 'LINK', label: 'Links', description: 'Saved videos & bookmarks', icon: 'link-2' },
+  { id: 'PINNED', label: 'Pinned', description: 'Starred vault items', icon: 'bookmark' }
 ];
-
-export const DEFAULT_TAGS = ['#personal', '#work', '#ideas', '#watchlater', '#passwords'];

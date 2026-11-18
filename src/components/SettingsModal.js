@@ -19,7 +19,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { COLORS } from '../theme/colors';
-import { isValidBackup, normalizeTag, hapticTap, hapticNotify } from '../utils/helpers';
+import { isValidBackup, hapticTap, hapticNotify } from '../utils/helpers';
 import {
   exportVaultBackupFile,
   pickAndReadBackupFile
@@ -33,10 +33,8 @@ export default function SettingsModal({
   onUpdateSettings,
   onRequestSetPin,
   onRequestRemovePin,
-  allTags = [],
-  onDeleteTag,
-  onAddTag,
   items = [],
+  expenses = [],
   onRestoreBackup,
   onClearAllItems,
   onShowToast
@@ -44,7 +42,6 @@ export default function SettingsModal({
   const [showPasteImport, setShowPasteImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
-  const [newTagInput, setNewTagInput] = useState('');
 
   async function handleToggleBiometric(val) {
     hapticTap('light');
@@ -86,7 +83,7 @@ export default function SettingsModal({
   async function handleExportFile() {
     hapticTap('medium');
     try {
-      await exportVaultBackupFile(items, allTags);
+      await exportVaultBackupFile(items, expenses);
       onShowToast && onShowToast('Backup file ready');
     } catch (e) {
       Alert.alert('Export Error', e?.message || 'Could not share backup file.');
@@ -110,11 +107,12 @@ export default function SettingsModal({
       const payload = JSON.stringify(
         {
           app: 'SecondBrainVault',
-          version: 2,
+          version: 3,
           exportedAt: new Date().toISOString(),
           itemCount: items.length,
+          expenseCount: expenses.length,
           items,
-          tags: allTags
+          expenses
         },
         null,
         2
@@ -135,16 +133,17 @@ export default function SettingsModal({
         return;
       }
       const cleanItems = parsed.items.filter((i) => i.type !== 'SNIPPET');
+      const restoredExpenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
       Alert.alert(
         'Confirm Restore',
-        `Found ${cleanItems.length} items in this backup. Replace your current vault items with this backup?`,
+        `Found ${cleanItems.length} vault items${restoredExpenses.length ? ` and ${restoredExpenses.length} expense records` : ''}. Replace current data?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Restore',
             style: 'destructive',
             onPress: () => {
-              onRestoreBackup && onRestoreBackup(cleanItems, parsed.tags || allTags);
+              onRestoreBackup && onRestoreBackup(cleanItems, restoredExpenses);
               setShowPasteImport(false);
               setImportText('');
               setImportError('');
@@ -172,19 +171,6 @@ export default function SettingsModal({
     } catch (e) {
       setImportError('Could not read clipboard');
     }
-  }
-
-  function handleAddNewTag() {
-    const t = normalizeTag(newTagInput);
-    if (!t) return;
-    if (allTags.includes(t)) {
-      Alert.alert('Tag Exists', `The tag "${t}" already exists.`);
-      return;
-    }
-    hapticTap('light');
-    onAddTag && onAddTag(t);
-    setNewTagInput('');
-    onShowToast && onShowToast(`Added tag ${t}`);
   }
 
   function confirmClearAll() {
@@ -394,40 +380,6 @@ export default function SettingsModal({
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
-
-            {/* TAGS */}
-            <View style={styles.section}>
-              <Text style={styles.sectionHeader}>TAGS</Text>
-              <View style={styles.tagsContainer}>
-                {allTags.map((t) => (
-                  <View key={t} style={styles.tagPill}>
-                    <Text style={styles.tagText}>{t}</Text>
-                    <TouchableOpacity
-                      onPress={() => onDeleteTag && onDeleteTag(t)}
-                      style={styles.tagDeleteBtn}
-                      hitSlop={6}
-                    >
-                      <Feather name="x" size={12} color={COLORS.textMuted} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.newTagRow}>
-                <TextInput
-                  style={styles.newTagInput}
-                  placeholder="#new-tag"
-                  placeholderTextColor={COLORS.textMuted}
-                  value={newTagInput}
-                  onChangeText={setNewTagInput}
-                  autoCapitalize="none"
-                  onSubmitEditing={handleAddNewTag}
-                />
-                <TouchableOpacity style={styles.addTagBtn} onPress={handleAddNewTag}>
-                  <Text style={styles.addTagBtnText}>Add</Text>
-                </TouchableOpacity>
-              </View>
             </View>
 
             {/* DANGER ZONE */}

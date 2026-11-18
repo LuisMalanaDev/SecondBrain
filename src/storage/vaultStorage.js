@@ -1,9 +1,9 @@
 // ============================================================================
 // src/storage/vaultStorage.js
 // 100% Standalone Local Storage Engine:
-// - SQLite (expo-sqlite) for scalable offline items, tags & settings
+// - SQLite (expo-sqlite) for Vault Items, Cash/Expenses & Settings
 // - Hardware SecureStore (expo-secure-store) for Master PIN
-// - Local Sandbox FileSystem (expo-file-system) for Voice Memos, Private Photos & Backups
+// - Local Sandbox FileSystem (expo-file-system) for Voice Memos, Photos & Backups
 // ============================================================================
 
 import * as SQLite from 'expo-sqlite';
@@ -12,12 +12,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Paths, File, Directory } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import { DEFAULT_TAGS } from '../theme/colors';
 
 const LEGACY_KEYS = {
   VAULT_ITEMS: 'sbv_items_v1',
   VAULT_PIN: 'sbv_pin_v1',
-  VAULT_TAGS: 'sbv_tags_v1',
   VAULT_SETTINGS: 'sbv_settings_v1'
 };
 
@@ -59,6 +57,17 @@ async function getDb() {
         );
         CREATE INDEX IF NOT EXISTS idx_items_updated ON vault_items(updatedAt DESC);
         CREATE INDEX IF NOT EXISTS idx_items_type ON vault_items(type);
+
+        CREATE TABLE IF NOT EXISTS vault_expenses (
+          id TEXT PRIMARY KEY NOT NULL,
+          kind TEXT NOT NULL,
+          amount REAL NOT NULL,
+          title TEXT NOT NULL,
+          category TEXT,
+          createdAt TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_expenses_created ON vault_expenses(createdAt DESC);
+
         CREATE TABLE IF NOT EXISTS vault_meta (
           key TEXT PRIMARY KEY NOT NULL,
           value TEXT
@@ -72,13 +81,9 @@ async function getDb() {
 
 function rowToItem(row) {
   let checklist = [];
-  let tags = [];
   let attachments = [];
   try {
     checklist = row.checklist ? JSON.parse(row.checklist) : [];
-  } catch (e) {}
-  try {
-    tags = row.tags ? JSON.parse(row.tags) : [];
   } catch (e) {}
   try {
     attachments = row.attachments ? JSON.parse(row.attachments) : [];
@@ -93,7 +98,6 @@ function rowToItem(row) {
     secretPassword: row.secretPassword || '',
     websiteUrl: row.websiteUrl || '',
     checklist,
-    tags,
     attachments,
     audioUri: row.audioUri || null,
     audioDurationMs: Number(row.audioDurationMs || 0),
@@ -101,6 +105,17 @@ function rowToItem(row) {
     isLocked: Boolean(row.isLocked),
     createdAt: row.createdAt || '',
     updatedAt: row.updatedAt || ''
+  };
+}
+
+function rowToExpense(row) {
+  return {
+    id: row.id,
+    kind: row.kind === 'CASH_IN' ? 'CASH_IN' : 'EXPENSE',
+    amount: Number(row.amount || 0),
+    title: row.title || '',
+    category: row.category || '',
+    createdAt: row.createdAt || ''
   };
 }
 
@@ -120,7 +135,6 @@ export async function saveVaultPin(pinCode) {
     } else {
       await SecureStore.setItemAsync(SECURE_PIN_KEY, String(pinCode));
     }
-    // Clean up legacy plaintext AsyncStorage PIN if present
     await AsyncStorage.removeItem(LEGACY_KEYS.VAULT_PIN).catch(() => {});
   } catch (e) {}
 }
@@ -133,22 +147,14 @@ async function migrateLegacyAsyncStorageIfNeeded(db) {
     );
     if (migratedFlag?.value === '1') return;
 
-    const [rawItems, rawPin, rawTags, rawSettings] = await Promise.all([
+    const [rawItems, rawPin, rawSettings] = await Promise.all([
       AsyncStorage.getItem(LEGACY_KEYS.VAULT_ITEMS),
       AsyncStorage.getItem(LEGACY_KEYS.VAULT_PIN),
-      AsyncStorage.getItem(LEGACY_KEYS.VAULT_TAGS),
       AsyncStorage.getItem(LEGACY_KEYS.VAULT_SETTINGS)
     ]);
 
     if (rawPin) {
       await saveVaultPin(rawPin);
-    }
-    if (rawTags) {
-      await db.runAsync(
-        'INSERT OR REPLACE INTO vault_meta (key, value) VALUES (?, ?)',
-        'tags',
-        rawTags
-      );
     }
     if (rawSettings) {
       await db.runAsync(
@@ -182,22 +188,15 @@ export async function loadVaultState() {
     const db = await getDb();
     await migrateLegacyAsyncStorageIfNeeded(db);
 
-    const [rows, metaTags, metaSettings, pinCode] = await Promise.all([
+    const [rows, expenseRows, metaSettings, pinCode] = await Promise.all([
       db.getAllAsync('SELECT * FROM vault_items ORDER BY isPinned DESC, updatedAt DESC'),
-      db.getFirstAsync('SELECT value FROM vault_meta WHERE key = ?', 'tags'),
+      db.getAllAsync('SELECT * FROM vault_expenses ORDER BY createdAt DESC'),
       db.getFirstAsync('SELECT value FROM vault_meta WHERE key = ?', 'settings'),
       getPinFromSecureStore()
     ]);
 
     const items = (rows || []).map(rowToItem);
-
-    let tags = DEFAULT_TAGS;
-    if (metaTags?.value) {
-      try {
-        const parsedTags = JSON.parse(metaTags.value);
-        if (Array.isArray(parsedTags)) tags = parsedTags;
-      } catch (e) {}
-    }
+    const expenses = (expenseRows || []).map(rowToExpense);
 
     let settings = { ...DEFAULT_SETTINGS };
     if (metaSettings?.value) {
@@ -206,12 +205,12 @@ export async function loadVaultState() {
       } catch (e) {}
     }
 
-    return { items, pinCode, tags, settings };
+    return { items, expenses, pinCode, settings };
   } catch (e) {
     return {
       items: [],
+      expenses: [],
       pinCode: null,
-      tags: DEFAULT_TAGS,
       settings: { ...DEFAULT_SETTINGS }
     };
   }
@@ -234,7 +233,7 @@ export async function upsertVaultItem(item) {
       item.secretPassword || '',
       item.websiteUrl || '',
       JSON.stringify(item.checklist || []),
-      JSON.stringify(item.tags || []),
+      '[]',
       JSON.stringify(item.attachments || []),
       item.audioUri || null,
       Number(item.audioDurationMs || 0),
@@ -273,7 +272,7 @@ export async function replaceAllVaultItems(items = []) {
           item.secretPassword || '',
           item.websiteUrl || '',
           JSON.stringify(item.checklist || []),
-          JSON.stringify(item.tags || []),
+          '[]',
           JSON.stringify(item.attachments || []),
           item.audioUri || null,
           Number(item.audioDurationMs || 0),
@@ -287,6 +286,61 @@ export async function replaceAllVaultItems(items = []) {
   } catch (e) {}
 }
 
+// ============================================================================
+// Expenses & Cash Ledger SQLite CRUD
+// ============================================================================
+
+export async function addExpenseEntry(entry) {
+  try {
+    const db = await getDb();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO vault_expenses (id, kind, amount, title, category, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      entry.id,
+      entry.kind === 'CASH_IN' ? 'CASH_IN' : 'EXPENSE',
+      Number(entry.amount || 0),
+      entry.title || '',
+      entry.category || '',
+      entry.createdAt || new Date().toISOString()
+    );
+  } catch (e) {}
+}
+
+export async function deleteExpenseEntryById(id) {
+  try {
+    const db = await getDb();
+    await db.runAsync('DELETE FROM vault_expenses WHERE id = ?', id);
+  } catch (e) {}
+}
+
+export async function replaceAllExpenses(expenses = []) {
+  try {
+    const db = await getDb();
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM vault_expenses');
+      for (const e of expenses) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO vault_expenses (id, kind, amount, title, category, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          e.id,
+          e.kind === 'CASH_IN' ? 'CASH_IN' : 'EXPENSE',
+          Number(e.amount || 0),
+          e.title || '',
+          e.category || '',
+          e.createdAt || new Date().toISOString()
+        );
+      }
+    });
+  } catch (e) {}
+}
+
+export async function clearAllExpenses() {
+  try {
+    const db = await getDb();
+    await db.runAsync('DELETE FROM vault_expenses');
+  } catch (e) {}
+}
+
 export async function saveVaultSettings(settings) {
   try {
     const db = await getDb();
@@ -294,17 +348,6 @@ export async function saveVaultSettings(settings) {
       'INSERT OR REPLACE INTO vault_meta (key, value) VALUES (?, ?)',
       'settings',
       JSON.stringify(settings)
-    );
-  } catch (e) {}
-}
-
-export async function saveVaultTags(tags) {
-  try {
-    const db = await getDb();
-    await db.runAsync(
-      'INSERT OR REPLACE INTO vault_meta (key, value) VALUES (?, ?)',
-      'tags',
-      JSON.stringify(tags)
     );
   } catch (e) {}
 }
@@ -325,7 +368,6 @@ export async function saveMediaFile(sourceUri, prefix = 'media', defaultExt = '.
   if (!sourceUri) return null;
   try {
     const mediaDir = getMediaDir();
-    // If already stored inside our vault_media directory, keep as-is
     if (sourceUri.startsWith(mediaDir.uri)) {
       return sourceUri;
     }
@@ -368,17 +410,18 @@ export function clearAllMediaFiles() {
 // File Export / Import (JSON Backup File via Share Sheet & Document Picker)
 // ============================================================================
 
-export async function exportVaultBackupFile(items = [], tags = []) {
+export async function exportVaultBackupFile(items = [], expenses = []) {
   const dateTag = new Date().toISOString().slice(0, 10);
   const fileName = `SecondBrainVault_${dateTag}.json`;
   const payload = JSON.stringify(
     {
       app: 'SecondBrainVault',
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       itemCount: items.length,
+      expenseCount: expenses.length,
       items,
-      tags
+      expenses
     },
     null,
     2

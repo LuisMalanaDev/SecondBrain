@@ -27,7 +27,7 @@ const TYPE_INFO = {
   VOICE: { label: 'Voice Memo', icon: 'mic' },
   PASSWORD: { label: 'Password', icon: 'lock' },
   CHECKLIST: { label: 'Tasks', icon: 'check-square' },
-  LINK: { label: 'Saved Link', icon: 'bookmark' }
+  LINK: { label: 'Saved Link', icon: 'link-2' }
 };
 
 export default function ItemDetailModal({
@@ -140,17 +140,6 @@ export default function ItemDetailModal({
 
           {/* Title */}
           <Text style={styles.title}>{item.title}</Text>
-
-          {/* Tags */}
-          {(item.tags || []).length > 0 && (
-            <View style={styles.tagWrap}>
-              {item.tags.map((t) => (
-                <View key={t} style={styles.tagPill}>
-                  <Text style={styles.tagText}>{t}</Text>
-                </View>
-              ))}
-            </View>
-          )}
 
           {/* Gated Body */}
           {gated ? (

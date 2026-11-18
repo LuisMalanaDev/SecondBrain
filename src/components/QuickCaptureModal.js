@@ -34,7 +34,6 @@ import {
   nowIso,
   generatePassword,
   passwordStrength,
-  normalizeTag,
   formatDuration,
   extractDomain,
   isLikelyUrl,
@@ -60,7 +59,6 @@ const blankDraft = (type = 'NOTE') => ({
   secretPassword: '',
   websiteUrl: '',
   checklist: [],
-  tags: [],
   attachments: [],
   audioUri: null,
   audioDurationMs: 0,
@@ -72,15 +70,12 @@ export default function QuickCaptureModal({
   visible,
   initialItem,
   initialType = 'NOTE',
-  allTags = [],
   hasPin = false,
   onSave,
-  onClose,
-  onAddTag
+  onClose
 }) {
   const [draft, setDraft] = useState(blankDraft(initialType));
   const [newTask, setNewTask] = useState('');
-  const [newTag, setNewTag] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState(null);
   const [error, setError] = useState('');
@@ -97,7 +92,6 @@ export default function QuickCaptureModal({
         : blankDraft(initialType)
     );
     setNewTask('');
-    setNewTag('');
     setShowPw(false);
     setError('');
     setDetectedUrl(null);
@@ -123,24 +117,6 @@ export default function QuickCaptureModal({
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
   const isEdit = Boolean(initialItem);
-
-  function toggleTag(tag) {
-    hapticTap('light');
-    set({
-      tags: draft.tags.includes(tag)
-        ? draft.tags.filter((t) => t !== tag)
-        : [...draft.tags, tag]
-    });
-  }
-
-  function addCustomTag() {
-    const t = normalizeTag(newTag);
-    if (!t) return;
-    hapticTap('light');
-    if (!allTags.includes(t)) onAddTag && onAddTag(t);
-    if (!draft.tags.includes(t)) set({ tags: [...draft.tags, t] });
-    setNewTag('');
-  }
 
   function addTask() {
     const text = newTask.trim();
@@ -662,37 +638,6 @@ export default function QuickCaptureModal({
                 </View>
               </View>
             )}
-
-            {/* Tags */}
-            <Text style={styles.label}>TAGS</Text>
-            <View style={styles.tagWrap}>
-              {allTags.map((t) => {
-                const on = draft.tags.includes(t);
-                return (
-                  <TouchableOpacity
-                    key={t}
-                    onPress={() => toggleTag(t)}
-                    style={[styles.tagChip, on && styles.tagChipActive]}
-                  >
-                    <Text style={[styles.tagChipText, on && styles.tagChipTextActive]}>{t}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={[styles.row, { marginBottom: 14 }]}>
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder="#tag"
-                placeholderTextColor={COLORS.textMuted}
-                value={newTag}
-                onChangeText={setNewTag}
-                onSubmitEditing={addCustomTag}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity style={styles.iconBtn} onPress={addCustomTag}>
-                <Text style={styles.iconBtnText}>+ Tag</Text>
-              </TouchableOpacity>
-            </View>
 
             {/* Toggles */}
             <View style={styles.toggleRow}>

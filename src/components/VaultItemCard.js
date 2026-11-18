@@ -24,7 +24,7 @@ const TYPE_META = {
   VOICE: { label: 'Voice', icon: 'mic' },
   PASSWORD: { label: 'Password', icon: 'lock' },
   CHECKLIST: { label: 'Tasks', icon: 'check-square' },
-  LINK: { label: 'Link', icon: 'bookmark' }
+  LINK: { label: 'Link', icon: 'link-2' }
 };
 
 function VaultItemCard({
@@ -265,17 +265,6 @@ function VaultItemCard({
             </View>
           )}
         </>
-      )}
-
-      {/* Tags */}
-      {(item.tags || []).length > 0 && (
-        <View style={styles.tagWrap}>
-          {item.tags.map((t) => (
-            <View key={t} style={styles.tagPill}>
-              <Text style={styles.tagPillText}>{t}</Text>
-            </View>
-          ))}
-        </View>
       )}
 
       {/* Footer */}

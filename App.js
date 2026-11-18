@@ -1,7 +1,6 @@
 // ============================================================================
 // App.js — SecondBrain Vault
-// Standalone Offline Knowledge, Voice, Photo, Link & Password Vault
-// Local SQLite + Hardware SecureStore + Private Sandbox Media
+// Standalone Offline Vault: Home Guide, Expenses & Cash, Notes, Voice, Passwords, Tasks & Links
 // ============================================================================
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -12,7 +11,6 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  ScrollView,
   StyleSheet,
   StatusBar as RNStatusBar,
   Platform,
@@ -23,24 +21,31 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 
-import { COLORS, VAULT_CATEGORIES } from './src/theme/colors';
+import { COLORS, VAULT_SECTIONS } from './src/theme/colors';
 import {
   loadVaultState,
   upsertVaultItem,
   deleteVaultItemById,
   replaceAllVaultItems,
+  addExpenseEntry,
+  deleteExpenseEntryById,
+  replaceAllExpenses,
+  clearAllExpenses,
   deleteMediaFile,
   clearAllMediaFiles,
   saveVaultPin,
-  saveVaultSettings,
-  saveVaultTags
+  saveVaultSettings
 } from './src/storage/vaultStorage';
 import {
   filterItems,
   computeStats,
+  computeExpenseStats,
   hapticTap
 } from './src/utils/helpers';
 
+import SectionDropdown from './src/components/SectionDropdown';
+import HomeSection from './src/components/HomeSection';
+import ExpensesSection from './src/components/ExpensesSection';
 import VaultItemCard from './src/components/VaultItemCard';
 import QuickCaptureModal from './src/components/QuickCaptureModal';
 import PinLockModal from './src/components/PinLockModal';
@@ -48,10 +53,10 @@ import SettingsModal from './src/components/SettingsModal';
 import ItemDetailModal from './src/components/ItemDetailModal';
 
 export default function App() {
-  // Vault Data
+  // Vault & Expenses Data
   const [items, setItems] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [pinCode, setPinCode] = useState(null);
-  const [tags, setTags] = useState([]);
   const [settings, setSettings] = useState({
     lockOnAppOpen: false,
     biometricEnabled: false,
@@ -65,10 +70,10 @@ export default function App() {
   const [sessionUnlocked, setSessionUnlocked] = useState(false);
   const [privacyShield, setPrivacyShield] = useState(false);
 
-  // Filters & Search
+  // Navigation & Search (Defaults to HOME)
+  const [activeSection, setActiveSection] = useState('HOME');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [selectedTag, setSelectedTag] = useState(null);
+  const [expenseModalTrigger, setExpenseModalTrigger] = useState(null);
 
   // Modals
   const [captureVisible, setCaptureVisible] = useState(false);
@@ -123,8 +128,8 @@ export default function App() {
         (i) => i && !i.id?.startsWith('seed_') && i.type !== 'SNIPPET'
       );
       setItems(cleanItems);
+      setExpenses(state.expenses || []);
       setPinCode(state.pinCode);
-      setTags(state.tags || ['#personal', '#work', '#ideas', '#watchlater', '#passwords']);
       setSettings(state.settings);
 
       if (state.settings?.lockOnAppOpen && state.pinCode) {
@@ -140,7 +145,6 @@ export default function App() {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
 
-      // Avoid auto-locking while native pickers/biometric/share sheets are open
       const modalBusy = captureVisible || settingsVisible || pinModal.visible;
 
       if (nextState === 'inactive' || nextState === 'background') {
@@ -173,23 +177,29 @@ export default function App() {
     pinModal.visible
   ]);
 
-  // Filtered Items & Stats
+  // Computed Data
   const filteredList = useMemo(() => {
     return filterItems(items, {
       query: searchQuery,
-      category: selectedCategory,
-      tag: selectedTag
+      category: activeSection
     });
-  }, [items, searchQuery, selectedCategory, selectedTag]);
+  }, [items, searchQuery, activeSection]);
 
   const stats = useMemo(() => computeStats(items), [items]);
+  const expenseStats = useMemo(() => computeExpenseStats(expenses), [expenses]);
 
   const activeDetailItem = useMemo(
     () => (detailItemId ? items.find((i) => i.id === detailItemId) || null : null),
     [detailItemId, items]
   );
 
-  // Mutations (SQLite row-level updates)
+  // Clear search automatically when changing section
+  const handleSelectSection = useCallback((sectionId) => {
+    setSearchQuery('');
+    setActiveSection(sectionId);
+  }, []);
+
+  // Vault Item Mutations
   const handleSaveItem = useCallback(
     async (savedItem) => {
       setItems((prev) => {
@@ -258,6 +268,35 @@ export default function App() {
       await upsertVaultItem(updatedItem);
     }
   }, []);
+
+  // Expense Mutations
+  const handleAddExpense = useCallback(
+    async (entry) => {
+      setExpenses((prev) => [entry, ...prev]);
+      await addExpenseEntry(entry);
+      showToast(
+        entry.kind === 'CASH_IN'
+          ? `Added ₱${entry.amount} cash`
+          : `Deducted ₱${entry.amount} (${entry.title})`
+      );
+    },
+    [showToast]
+  );
+
+  const handleDeleteExpense = useCallback(
+    async (id) => {
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+      await deleteExpenseEntryById(id);
+      showToast('Record removed');
+    },
+    [showToast]
+  );
+
+  const handleClearExpenses = useCallback(async () => {
+    setExpenses([]);
+    await clearAllExpenses();
+    showToast('Expenses reset');
+  }, [showToast]);
 
   const handleCopy = useCallback(
     async (text, label = 'Copied', isSecret = false) => {
@@ -378,36 +417,22 @@ export default function App() {
     await saveVaultSettings(nextSettings);
   };
 
-  const handleAddTag = async (newTag) => {
-    if (!tags.includes(newTag)) {
-      const updated = [...tags, newTag];
-      setTags(updated);
-      await saveVaultTags(updated);
-    }
-  };
-
-  const handleDeleteTag = async (tagToDelete) => {
-    const updated = tags.filter((t) => t !== tagToDelete);
-    setTags(updated);
-    if (selectedTag === tagToDelete) setSelectedTag(null);
-    await saveVaultTags(updated);
-    showToast(`Removed ${tagToDelete}`);
-  };
-
-  const handleRestoreBackup = async (restoredItems, restoredTags) => {
+  const handleRestoreBackup = async (restoredItems, restoredExpenses = []) => {
     setItems(restoredItems);
     await replaceAllVaultItems(restoredItems);
-    if (Array.isArray(restoredTags) && restoredTags.length > 0) {
-      setTags(restoredTags);
-      await saveVaultTags(restoredTags);
+    if (Array.isArray(restoredExpenses)) {
+      setExpenses(restoredExpenses);
+      await replaceAllExpenses(restoredExpenses);
     }
   };
 
   const handleClearAllItems = async () => {
     setItems([]);
+    setExpenses([]);
     setDetailItemId(null);
     clearAllMediaFiles();
     await replaceAllVaultItems([]);
+    await clearAllExpenses();
   };
 
   const openQuickCapture = (type = 'NOTE') => {
@@ -422,6 +447,21 @@ export default function App() {
     setCaptureType(item.type);
     setCaptureVisible(true);
   };
+
+  const handleFabPress = () => {
+    if (activeSection === 'EXPENSES') {
+      hapticTap('medium');
+      setExpenseModalTrigger('EXPENSE');
+      return;
+    }
+    const defaultType =
+      activeSection !== 'HOME' && activeSection !== 'PINNED' ? activeSection : 'NOTE';
+    openQuickCapture(defaultType);
+  };
+
+  const activeSectionMeta =
+    VAULT_SECTIONS.find((s) => s.id === activeSection) || VAULT_SECTIONS[0];
+  const isItemSection = activeSection !== 'HOME' && activeSection !== 'EXPENSES';
 
   if (!isLoaded) {
     return (
@@ -463,7 +503,7 @@ export default function App() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Vault</Text>
+          <Text style={styles.headerTitle}>SecondBrain</Text>
           {pinCode ? (
             <TouchableOpacity
               onPress={toggleSessionLock}
@@ -495,170 +535,129 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      {/* Summary Bar */}
-      {items.length > 0 && (
-        <View style={styles.summaryBar}>
-          <Text style={styles.summaryText}>
-            {stats.total} {stats.total === 1 ? 'item' : 'items'}
-            {stats.pinned > 0 ? ` • ${stats.pinned} pinned` : ''}
-            {stats.voiceMemos > 0 ? ` • ${stats.voiceMemos} voice` : ''}
-            {stats.tasksTotal > 0 ? ` • ${stats.tasksDone}/${stats.tasksTotal} tasks` : ''}
-          </Text>
-        </View>
-      )}
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputWrapper}>
-          <Feather name="search" size={15} color={COLORS.textMuted} style={{ marginRight: 8 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search notes, links, passwords..."
-            placeholderTextColor={COLORS.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
-              <Feather name="x" size={15} color={COLORS.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Category Tabs */}
-      <View style={styles.categoryBar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScroll}
-        >
-          {VAULT_CATEGORIES.map((cat) => {
-            const active = selectedCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryPill, active && styles.categoryPillActive]}
-                onPress={() => {
-                  hapticTap('light');
-                  setSelectedCategory(cat.id);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Tag Bar */}
-      {tags.length > 0 && (
-        <View style={styles.tagsBar}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tagsScroll}
-          >
-            <TouchableOpacity
-              style={[styles.tagFilterPill, selectedTag === null && styles.tagFilterPillActive]}
-              onPress={() => {
-                hapticTap('light');
-                setSelectedTag(null);
-              }}
-            >
-              <Text style={[styles.tagFilterText, selectedTag === null && styles.tagFilterTextActive]}>
-                All
-              </Text>
-            </TouchableOpacity>
-            {tags.map((t) => {
-              const active = selectedTag === t;
-              return (
-                <TouchableOpacity
-                  key={t}
-                  style={[styles.tagFilterPill, active && styles.tagFilterPillActive]}
-                  onPress={() => {
-                    hapticTap('light');
-                    setSelectedTag(active ? null : t);
-                  }}
-                >
-                  <Text style={[styles.tagFilterText, active && styles.tagFilterTextActive]}>{t}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Main List */}
-      <FlatList
-        data={filteredList}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <VaultItemCard
-            item={item}
-            hasPin={Boolean(pinCode)}
-            sessionUnlocked={sessionUnlocked}
-            onRequestUnlock={requestUnlock}
-            onOpenDetail={(it) => setDetailItemId(it.id)}
-            onToggleTask={handleToggleTask}
-            onTogglePin={handleTogglePin}
-            onEdit={openEdit}
-            onDelete={handleDeleteItem}
-            onCopy={handleCopy}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconBox}>
-              <Feather
-                name={searchQuery || selectedCategory !== 'ALL' || selectedTag ? 'search' : 'layers'}
-                size={22}
-                color={COLORS.textMuted}
-              />
-            </View>
-            <Text style={styles.emptyTitle}>
-              {searchQuery || selectedCategory !== 'ALL' || selectedTag
-                ? 'No matching results'
-                : 'No items in vault'}
-            </Text>
-            <Text style={styles.emptySub}>
-              {searchQuery || selectedCategory !== 'ALL' || selectedTag
-                ? 'Try a different search query or clear the active filter.'
-                : 'Tap + New to save notes, voice memos, private photos, links, or passwords offline.'}
-            </Text>
-
-            {!searchQuery && selectedCategory === 'ALL' && !selectedTag && (
-              <TouchableOpacity
-                style={styles.emptyAddBtn}
-                onPress={() => openQuickCapture('NOTE')}
-                activeOpacity={0.8}
-              >
-                <Feather name="plus" size={14} color={COLORS.textPrimary} />
-                <Text style={styles.emptyAddBtnText}>New Item</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        }
+      {/* Dropdown Section Switcher */}
+      <SectionDropdown
+        activeSection={activeSection}
+        onSelectSection={handleSelectSection}
+        stats={stats}
+        expenseBalance={expenseStats.balance}
       />
 
+      {/* HOME SECTION */}
+      {activeSection === 'HOME' && (
+        <HomeSection
+          stats={stats}
+          expenseStats={expenseStats}
+          hasPin={Boolean(pinCode)}
+          onSelectSection={handleSelectSection}
+          onOpenSettings={() => setSettingsVisible(true)}
+        />
+      )}
+
+      {/* EXPENSES SECTION */}
+      {activeSection === 'EXPENSES' && (
+        <ExpensesSection
+          expenses={expenses}
+          onAddEntry={handleAddExpense}
+          onDeleteEntry={handleDeleteExpense}
+          onClearAll={handleClearExpenses}
+          externalModalTrigger={expenseModalTrigger}
+          onExternalTriggerHandled={() => setExpenseModalTrigger(null)}
+        />
+      )}
+
+      {/* VAULT ITEM SECTIONS (Notes, Voice, Passwords, Tasks, Links, Pinned) */}
+      {isItemSection && (
+        <>
+          <View style={styles.searchContainer}>
+            <View style={styles.searchInputWrapper}>
+              <Feather
+                name="search"
+                size={15}
+                color={COLORS.textMuted}
+                style={{ marginRight: 8 }}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={`Search ${activeSectionMeta.label.toLowerCase()}...`}
+                placeholderTextColor={COLORS.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+                  <Feather name="x" size={15} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <FlatList
+            data={filteredList}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <VaultItemCard
+                item={item}
+                hasPin={Boolean(pinCode)}
+                sessionUnlocked={sessionUnlocked}
+                onRequestUnlock={requestUnlock}
+                onOpenDetail={(it) => setDetailItemId(it.id)}
+                onToggleTask={handleToggleTask}
+                onTogglePin={handleTogglePin}
+                onEdit={openEdit}
+                onDelete={handleDeleteItem}
+                onCopy={handleCopy}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconBox}>
+                  <Feather
+                    name={searchQuery ? 'search' : activeSectionMeta.icon}
+                    size={22}
+                    color={COLORS.textMuted}
+                  />
+                </View>
+                <Text style={styles.emptyTitle}>
+                  {searchQuery
+                    ? 'No matching results'
+                    : `No ${activeSectionMeta.label.toLowerCase()} yet`}
+                </Text>
+                <Text style={styles.emptySub}>
+                  {searchQuery
+                    ? 'Try a different search term.'
+                    : activeSection === 'PINNED'
+                    ? 'Bookmark any item to pin it here for quick access.'
+                    : `Tap + New to create your first ${activeSectionMeta.label.toLowerCase()} entry.`}
+                </Text>
+
+                {!searchQuery && activeSection !== 'PINNED' && (
+                  <TouchableOpacity
+                    style={styles.emptyAddBtn}
+                    onPress={() => openQuickCapture(activeSection)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="plus" size={14} color={COLORS.textPrimary} />
+                    <Text style={styles.emptyAddBtnText}>
+                      Add {activeSectionMeta.label}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            }
+          />
+        </>
+      )}
+
       {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() =>
-          openQuickCapture(
-            selectedCategory !== 'ALL' && selectedCategory !== 'PINNED' ? selectedCategory : 'NOTE'
-          )
-        }
-        activeOpacity={0.85}
-      >
+      <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.85}>
         <Feather name="plus" size={16} color="#000000" />
-        <Text style={styles.fabText}>New</Text>
+        <Text style={styles.fabText}>
+          {activeSection === 'EXPENSES' ? 'Expense' : 'New'}
+        </Text>
       </TouchableOpacity>
 
       {/* Toast */}
@@ -668,7 +667,7 @@ export default function App() {
         </Animated.View>
       )}
 
-      {/* Privacy Curtain Overlay (Hides sensitive data in recent apps switcher) */}
+      {/* Privacy Curtain Overlay */}
       {privacyShield && (
         <View style={styles.privacyCurtain}>
           <Feather name="shield" size={32} color={COLORS.textPrimary} />
@@ -696,14 +695,12 @@ export default function App() {
         visible={captureVisible}
         initialItem={captureItem}
         initialType={captureType}
-        allTags={tags}
         hasPin={Boolean(pinCode)}
         onSave={handleSaveItem}
         onClose={() => {
           setCaptureVisible(false);
           setCaptureItem(null);
         }}
-        onAddTag={handleAddTag}
       />
 
       {/* PIN Modal */}
@@ -728,10 +725,8 @@ export default function App() {
         onUpdateSettings={handleUpdateSettings}
         onRequestSetPin={promptSetPin}
         onRequestRemovePin={promptRemovePin}
-        allTags={tags}
-        onDeleteTag={handleDeleteTag}
-        onAddTag={handleAddTag}
         items={items}
+        expenses={expenses}
         onRestoreBackup={handleRestoreBackup}
         onClearAllItems={handleClearAllItems}
         onShowToast={showToast}
@@ -774,7 +769,7 @@ const styles = StyleSheet.create({
     gap: 10
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: COLORS.textPrimary,
     letterSpacing: -0.5
@@ -807,18 +802,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  summaryBar: {
-    paddingHorizontal: 20,
-    paddingBottom: 8
-  },
-  summaryText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    fontWeight: '500'
-  },
   searchContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 6
+    paddingTop: 2,
+    paddingBottom: 8
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -835,65 +822,10 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 14
   },
-  categoryBar: {
-    paddingVertical: 8
-  },
-  categoryScroll: {
-    paddingHorizontal: 20,
-    gap: 8,
-    flexDirection: 'row'
-  },
-  categoryPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border
-  },
-  categoryPillActive: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderColor: COLORS.borderHover
-  },
-  categoryPillText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.textSecondary
-  },
-  categoryPillTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  tagsBar: {
-    paddingBottom: 8
-  },
-  tagsScroll: {
-    paddingHorizontal: 20,
-    gap: 6,
-    flexDirection: 'row'
-  },
-  tagFilterPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  tagFilterPillActive: {
-    backgroundColor: COLORS.borderHover
-  },
-  tagFilterText: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: '500'
-  },
-  tagFilterTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '600'
-  },
   listContent: {
     paddingHorizontal: 20,
     paddingTop: 4,
-    paddingBottom: 96
+    paddingBottom: 100
   },
   emptyContainer: {
     alignItems: 'center',
