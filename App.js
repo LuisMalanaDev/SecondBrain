@@ -1,6 +1,7 @@
 // ============================================================================
 // App.js — SecondBrain Vault
-// Standalone Offline Vault: Home Guide, Expenses & Cash, Notes, Voice, Passwords, Tasks & Links
+// Standalone Offline Vault: Home Guide, Expenses, Analytics, Notes, Voice, Passwords, Tasks & Links
+// Supports OLED Dark (Default) & Clean Monochrome Light Themes
 // ============================================================================
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -22,7 +23,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 
-import { COLORS, VAULT_SECTIONS } from './src/theme/colors';
+import { ThemeProvider, useTheme, VAULT_SECTIONS } from './src/theme/colors';
 import {
   loadVaultState,
   upsertVaultItem,
@@ -56,7 +57,6 @@ import SettingsModal from './src/components/SettingsModal';
 import ItemDetailModal from './src/components/ItemDetailModal';
 
 export default function App() {
-  // Vault & Expenses Data
   const [items, setItems] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [pinCode, setPinCode] = useState(null);
@@ -64,28 +64,78 @@ export default function App() {
     lockOnAppOpen: false,
     biometricEnabled: false,
     autoLockOnBackground: true,
-    autoClearClipboard: true
+    autoClearClipboard: true,
+    themeMode: 'dark'
   });
   const [isLoaded, setIsLoaded] = useState(false);
-
-  // Security / App Lock State
   const [isAppLocked, setIsAppLocked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const state = await loadVaultState();
+      const cleanItems = (state.items || []).filter(
+        (i) => i && !i.id?.startsWith('seed_') && i.type !== 'SNIPPET'
+      );
+      setItems(cleanItems);
+      setExpenses(state.expenses || []);
+      setPinCode(state.pinCode);
+      setSettings(state.settings);
+
+      if (state.settings?.lockOnAppOpen && state.pinCode) {
+        setIsAppLocked(true);
+      }
+      setIsLoaded(true);
+    })();
+  }, []);
+
+  return (
+    <ThemeProvider mode={settings.themeMode || 'dark'}>
+      <AppShell
+        items={items}
+        setItems={setItems}
+        expenses={expenses}
+        setExpenses={setExpenses}
+        pinCode={pinCode}
+        setPinCode={setPinCode}
+        settings={settings}
+        setSettings={setSettings}
+        isLoaded={isLoaded}
+        isAppLocked={isAppLocked}
+        setIsAppLocked={setIsAppLocked}
+      />
+    </ThemeProvider>
+  );
+}
+
+function AppShell({
+  items,
+  setItems,
+  expenses,
+  setExpenses,
+  pinCode,
+  setPinCode,
+  settings,
+  setSettings,
+  isLoaded,
+  isAppLocked,
+  setIsAppLocked
+}) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [sessionUnlocked, setSessionUnlocked] = useState(false);
   const [privacyShield, setPrivacyShield] = useState(false);
 
-  // Navigation & Search (Defaults to HOME)
   const [activeSection, setActiveSection] = useState('HOME');
   const [searchQuery, setSearchQuery] = useState('');
   const [expenseModalTrigger, setExpenseModalTrigger] = useState(null);
 
-  // Modals
   const [captureVisible, setCaptureVisible] = useState(false);
   const [captureItem, setCaptureItem] = useState(null);
   const [captureType, setCaptureType] = useState('NOTE');
   const [detailItemId, setDetailItemId] = useState(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
-  // PIN Modal State
   const [pinModal, setPinModal] = useState({
     visible: false,
     mode: 'verify',
@@ -95,7 +145,6 @@ export default function App() {
     fullScreen: false
   });
 
-  // Toast & Timers
   const [toastText, setToastText] = useState(null);
   const toastFade = useRef(new Animated.Value(0)).current;
   const toastTimeoutRef = useRef(null);
@@ -122,25 +171,6 @@ export default function App() {
     },
     [toastFade]
   );
-
-  // Initial Load from SQLite + SecureStore
-  useEffect(() => {
-    (async () => {
-      const state = await loadVaultState();
-      const cleanItems = (state.items || []).filter(
-        (i) => i && !i.id?.startsWith('seed_') && i.type !== 'SNIPPET'
-      );
-      setItems(cleanItems);
-      setExpenses(state.expenses || []);
-      setPinCode(state.pinCode);
-      setSettings(state.settings);
-
-      if (state.settings?.lockOnAppOpen && state.pinCode) {
-        setIsAppLocked(true);
-      }
-      setIsLoaded(true);
-    })();
-  }, []);
 
   // AppState Privacy Curtain & Auto-Lock on Background
   useEffect(() => {
@@ -177,10 +207,10 @@ export default function App() {
     settings.lockOnAppOpen,
     captureVisible,
     settingsVisible,
-    pinModal.visible
+    pinModal.visible,
+    setIsAppLocked
   ]);
 
-  // Computed Data
   const filteredList = useMemo(() => {
     return filterItems(items, {
       query: searchQuery,
@@ -196,13 +226,11 @@ export default function App() {
     [detailItemId, items]
   );
 
-  // Clear search automatically when changing section
   const handleSelectSection = useCallback((sectionId) => {
     setSearchQuery('');
     setActiveSection(sectionId);
   }, []);
 
-  // Vault Item Mutations
   const handleSaveItem = useCallback(
     async (savedItem) => {
       setItems((prev) => {
@@ -219,7 +247,7 @@ export default function App() {
       setCaptureItem(null);
       showToast(savedItem.title ? `Saved "${savedItem.title}"` : 'Item saved');
     },
-    [showToast]
+    [setItems, showToast]
   );
 
   const handleDeleteItem = useCallback(
@@ -234,45 +262,50 @@ export default function App() {
       await deleteVaultItemById(id);
       showToast('Item deleted');
     },
-    [items, detailItemId, showToast]
+    [items, detailItemId, setItems, showToast]
   );
 
-  const handleTogglePin = useCallback(async (id) => {
-    let updatedItem = null;
-    setItems((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        updatedItem = { ...i, isPinned: !i.isPinned };
-        return updatedItem;
-      })
-    );
-    if (updatedItem) {
-      await upsertVaultItem(updatedItem);
-    }
-  }, []);
+  const handleTogglePin = useCallback(
+    async (id) => {
+      let updatedItem = null;
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.id !== id) return i;
+          updatedItem = { ...i, isPinned: !i.isPinned };
+          return updatedItem;
+        })
+      );
+      if (updatedItem) {
+        await upsertVaultItem(updatedItem);
+      }
+    },
+    [setItems]
+  );
 
-  const handleToggleTask = useCallback(async (itemId, taskId) => {
-    let updatedItem = null;
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== itemId) return item;
-        const nextChecklist = (item.checklist || []).map((t) =>
-          t.id === taskId ? { ...t, done: !t.done } : t
-        );
-        updatedItem = {
-          ...item,
-          checklist: nextChecklist,
-          updatedAt: new Date().toISOString()
-        };
-        return updatedItem;
-      })
-    );
-    if (updatedItem) {
-      await upsertVaultItem(updatedItem);
-    }
-  }, []);
+  const handleToggleTask = useCallback(
+    async (itemId, taskId) => {
+      let updatedItem = null;
+      setItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== itemId) return item;
+          const nextChecklist = (item.checklist || []).map((t) =>
+            t.id === taskId ? { ...t, done: !t.done } : t
+          );
+          updatedItem = {
+            ...item,
+            checklist: nextChecklist,
+            updatedAt: new Date().toISOString()
+          };
+          return updatedItem;
+        })
+      );
+      if (updatedItem) {
+        await upsertVaultItem(updatedItem);
+      }
+    },
+    [setItems]
+  );
 
-  // Expense Mutations
   const handleAddExpense = useCallback(
     async (entry) => {
       setExpenses((prev) => [entry, ...prev]);
@@ -283,7 +316,7 @@ export default function App() {
           : `Deducted ₱${entry.amount} (${entry.title})`
       );
     },
-    [showToast]
+    [setExpenses, showToast]
   );
 
   const handleDeleteExpense = useCallback(
@@ -292,14 +325,14 @@ export default function App() {
       await deleteExpenseEntryById(id);
       showToast('Record removed');
     },
-    [showToast]
+    [setExpenses, showToast]
   );
 
   const handleClearExpenses = useCallback(async () => {
     setExpenses([]);
     await clearAllExpenses();
     showToast('Expenses reset');
-  }, [showToast]);
+  }, [setExpenses, showToast]);
 
   const handleCopy = useCallback(
     async (text, label = 'Copied', isSecret = false) => {
@@ -335,7 +368,6 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // PIN Gating & Unlock
   const requestUnlock = useCallback(
     (actionCallback) => {
       if (!pinCode || sessionUnlocked) {
@@ -488,17 +520,16 @@ export default function App() {
   if (!isLoaded) {
     return (
       <View style={styles.loadingContainer}>
-        <StatusBar style="light" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <Text style={styles.loadingText}>Opening Vault...</Text>
       </View>
     );
   }
 
-  // App Locked on Launch Screen
   if (isAppLocked && pinCode) {
     return (
       <SafeAreaView style={styles.appLockedContainer}>
-        <StatusBar style="light" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <PinLockModal
           visible={true}
           mode="verify"
@@ -520,7 +551,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -535,7 +566,7 @@ export default function App() {
               <Feather
                 name={sessionUnlocked ? 'unlock' : 'lock'}
                 size={11}
-                color={COLORS.textSecondary}
+                color={colors.textSecondary}
               />
               <Text style={styles.lockStatusText}>
                 {sessionUnlocked ? 'Unlocked' : 'Locked'}
@@ -553,7 +584,7 @@ export default function App() {
           activeOpacity={0.7}
           hitSlop={8}
         >
-          <Feather name="settings" size={17} color={COLORS.textSecondary} />
+          <Feather name="settings" size={17} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -608,7 +639,7 @@ export default function App() {
         />
       )}
 
-      {/* VAULT ITEM SECTIONS (Notes, Voice, Passwords, Tasks, Links, Pinned) */}
+      {/* VAULT ITEM SECTIONS */}
       {isItemSection && (
         <>
           <View style={styles.searchContainer}>
@@ -616,20 +647,20 @@ export default function App() {
               <Feather
                 name="search"
                 size={15}
-                color={COLORS.textMuted}
+                color={colors.textMuted}
                 style={{ marginRight: 8 }}
               />
               <TextInput
                 style={styles.searchInput}
                 placeholder={`Search ${activeSectionMeta.label.toLowerCase()}...`}
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 returnKeyType="search"
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
-                  <Feather name="x" size={15} color={COLORS.textMuted} />
+                  <Feather name="x" size={15} color={colors.textMuted} />
                 </TouchableOpacity>
               )}
             </View>
@@ -661,7 +692,7 @@ export default function App() {
                   <Feather
                     name={searchQuery ? 'search' : activeSectionMeta.icon}
                     size={22}
-                    color={COLORS.textMuted}
+                    color={colors.textMuted}
                   />
                 </View>
                 <Text style={styles.emptyTitle}>
@@ -683,7 +714,7 @@ export default function App() {
                     onPress={() => openQuickCapture(activeSection)}
                     activeOpacity={0.8}
                   >
-                    <Feather name="plus" size={14} color={COLORS.textPrimary} />
+                    <Feather name="plus" size={14} color={colors.textPrimary} />
                     <Text style={styles.emptyAddBtnText}>
                       Add {activeSectionMeta.label}
                     </Text>
@@ -698,7 +729,7 @@ export default function App() {
       {/* Floating Action Button */}
       {activeSection !== 'ANALYTICS' && (
         <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.85}>
-          <Feather name="plus" size={16} color="#000000" />
+          <Feather name="plus" size={16} color={colors.solidBtnText} />
           <Text style={styles.fabText}>
             {activeSection === 'EXPENSES' ? 'Expense' : 'New'}
           </Text>
@@ -715,7 +746,7 @@ export default function App() {
       {/* Privacy Curtain Overlay */}
       {privacyShield && (
         <View style={styles.privacyCurtain}>
-          <Feather name="shield" size={32} color={COLORS.textPrimary} />
+          <Feather name="shield" size={32} color={colors.textPrimary} />
           <Text style={styles.privacyCurtainText}>SecondBrain Vault</Text>
         </View>
       )}
@@ -781,195 +812,196 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight || 20 : 0
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  loadingText: {
-    fontSize: 14,
-    color: COLORS.textMuted
-  },
-  appLockedContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    letterSpacing: -0.5
-  },
-  lockStatusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6
-  },
-  lockStatusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5
-  },
-  settingsBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 2,
-    paddingBottom: 8
-  },
-  searchInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8
-  },
-  searchInput: {
-    flex: 1,
-    color: COLORS.textPrimary,
-    fontSize: 14
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 100
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 64,
-    paddingHorizontal: 24
-  },
-  emptyIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginBottom: 6
-  },
-  emptySub: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 20,
-    maxWidth: 270
-  },
-  emptyAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    borderRadius: 9,
-    paddingHorizontal: 16,
-    paddingVertical: 9
-  },
-  emptyAddBtnText: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  fab: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 36 : 24,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    elevation: 4,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4
-  },
-  fabText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#000000'
-  },
-  toastContainer: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 88 : 76,
-    alignSelf: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 8
-  },
-  toastText: {
-    color: COLORS.textPrimary,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  privacyCurtain: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    zIndex: 999
-  },
-  privacyCurtainText: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight || 20 : 0
+    },
+    loadingContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    loadingText: {
+      fontSize: 14,
+      color: colors.textMuted
+    },
+    appLockedContainer: {
+      flex: 1,
+      backgroundColor: colors.background
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 8
+    },
+    headerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10
+    },
+    headerTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      letterSpacing: -0.5
+    },
+    lockStatusPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6
+    },
+    lockStatusText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5
+    },
+    settingsBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    searchContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 2,
+      paddingBottom: 8
+    },
+    searchInputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 10 : 8
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 14
+    },
+    listContent: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 100
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 64,
+      paddingHorizontal: 24
+    },
+    emptyIconBox: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 14
+    },
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 6
+    },
+    emptySub: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 19,
+      marginBottom: 20,
+      maxWidth: 270
+    },
+    emptyAddBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      borderRadius: 9,
+      paddingHorizontal: 16,
+      paddingVertical: 9
+    },
+    emptyAddBtnText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '600'
+    },
+    fab: {
+      position: 'absolute',
+      bottom: Platform.OS === 'ios' ? 36 : 24,
+      right: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.solidBtnBg,
+      borderRadius: 22,
+      paddingVertical: 11,
+      paddingHorizontal: 18,
+      elevation: 4,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4
+    },
+    fabText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.solidBtnText
+    },
+    toastContainer: {
+      position: 'absolute',
+      bottom: Platform.OS === 'ios' ? 88 : 76,
+      alignSelf: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      borderRadius: 18,
+      paddingHorizontal: 16,
+      paddingVertical: 8
+    },
+    toastText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '600'
+    },
+    privacyCurtain: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      zIndex: 999
+    },
+    privacyCurtainText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+      letterSpacing: 0.5
+    }
+  });

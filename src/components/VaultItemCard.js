@@ -3,7 +3,7 @@
 // Crisp Monochrome Icons, Voice Player, Private Photo Previews & Haptics
 // ============================================================================
 
-import React, { useState, memo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
   Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { formatDate, extractDomain, hapticTap } from '../utils/helpers';
 import VoicePlayer from './VoicePlayer';
 
@@ -40,6 +40,9 @@ function VaultItemCard({
   onCopy,
   onShare
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [revealPw, setRevealPw] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -74,14 +77,14 @@ function VaultItemCard({
       {/* Header */}
       <View style={styles.headerRow}>
         <View style={styles.badge}>
-          <Feather name={meta.icon} size={11} color={COLORS.badgeText} />
+          <Feather name={meta.icon} size={11} color={colors.badgeText} />
           <Text style={styles.badgeText}>{meta.label}</Text>
         </View>
 
         <View style={styles.headerRight}>
           {attachments.length > 0 && (
             <View style={styles.metaChip}>
-              <Feather name="image" size={11} color={COLORS.textMuted} />
+              <Feather name="image" size={11} color={colors.textMuted} />
               <Text style={styles.metaChipText}>{attachments.length}</Text>
             </View>
           )}
@@ -90,7 +93,7 @@ function VaultItemCard({
               <Feather
                 name={gated ? 'lock' : 'unlock'}
                 size={11}
-                color={COLORS.textMuted}
+                color={colors.textMuted}
               />
             </View>
           )}
@@ -105,7 +108,7 @@ function VaultItemCard({
             <Feather
               name="bookmark"
               size={14}
-              color={item.isPinned ? COLORS.textPrimary : COLORS.textMuted}
+              color={item.isPinned ? colors.textPrimary : colors.textMuted}
             />
           </TouchableOpacity>
         </View>
@@ -123,17 +126,15 @@ function VaultItemCard({
           onPress={() => onRequestUnlock(() => onOpenDetail && onOpenDetail(item))}
           activeOpacity={0.7}
         >
-          <Feather name="lock" size={13} color={COLORS.textMuted} />
+          <Feather name="lock" size={13} color={colors.textMuted} />
           <Text style={styles.lockedText}>Locked — tap to unlock with PIN</Text>
         </TouchableOpacity>
       ) : (
         <>
-          {/* VOICE MEMO */}
           {item.audioUri ? (
             <VoicePlayer uri={item.audioUri} durationMs={item.audioDurationMs} compact />
           ) : null}
 
-          {/* PASSWORD */}
           {item.type === 'PASSWORD' && (
             <View style={styles.pwContainer}>
               {item.username ? (
@@ -147,7 +148,7 @@ function VaultItemCard({
                     hitSlop={6}
                     style={styles.copySmallBtn}
                   >
-                    <Feather name="copy" size={12} color={COLORS.textPrimary} />
+                    <Feather name="copy" size={12} color={colors.textPrimary} />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -175,7 +176,7 @@ function VaultItemCard({
                   <Feather
                     name={revealPw ? 'eye-off' : 'eye'}
                     size={12}
-                    color={COLORS.textPrimary}
+                    color={colors.textPrimary}
                   />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -183,13 +184,12 @@ function VaultItemCard({
                   hitSlop={6}
                   style={styles.copySmallBtn}
                 >
-                  <Feather name="copy" size={12} color={COLORS.textPrimary} />
+                  <Feather name="copy" size={12} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
             </View>
           )}
 
-          {/* CHECKLIST */}
           {item.type === 'CHECKLIST' && checklist.length > 0 && (
             <View style={styles.checklistContainer}>
               <View style={styles.progressRow}>
@@ -212,7 +212,7 @@ function VaultItemCard({
                   activeOpacity={0.6}
                 >
                   <View style={[styles.checkbox, c.done && styles.checkboxDone]}>
-                    {c.done && <Feather name="check" size={11} color="#000000" />}
+                    {c.done && <Feather name="check" size={11} color={colors.solidBtnText} />}
                   </View>
                   <Text style={[styles.taskLabel, c.done && styles.taskLabelDone]} numberOfLines={2}>
                     {c.text}
@@ -228,7 +228,6 @@ function VaultItemCard({
             </View>
           )}
 
-          {/* LINK */}
           {item.type === 'LINK' && item.websiteUrl ? (
             <TouchableOpacity
               onPress={() => Linking.openURL(item.websiteUrl).catch(() => {})}
@@ -241,18 +240,16 @@ function VaultItemCard({
                   {item.websiteUrl}
                 </Text>
               </View>
-              <Feather name="external-link" size={14} color={COLORS.textSecondary} />
+              <Feather name="external-link" size={14} color={colors.textSecondary} />
             </TouchableOpacity>
           ) : null}
 
-          {/* Body Text */}
           {item.content ? (
             <Text style={styles.bodyText} selectable>
               {bodyText}
             </Text>
           ) : null}
 
-          {/* Private Photo Thumbnails */}
           {attachments.length > 0 && (
             <View style={styles.thumbRow}>
               {attachments.slice(0, 4).map((uri, idx) => (
@@ -279,7 +276,7 @@ function VaultItemCard({
               onPress={() => onCopy(item.websiteUrl, 'Link', false)}
               hitSlop={6}
             >
-              <Feather name="copy" size={12} color={COLORS.textPrimary} />
+              <Feather name="copy" size={12} color={colors.textPrimary} />
               <Text style={styles.actionBtnText}>Copy</Text>
             </TouchableOpacity>
           ) : null}
@@ -290,7 +287,7 @@ function VaultItemCard({
               onPress={withUnlock(() => onCopy(item.content, 'Note', false))}
               hitSlop={6}
             >
-              <Feather name="copy" size={12} color={COLORS.textPrimary} />
+              <Feather name="copy" size={12} color={colors.textPrimary} />
               <Text style={styles.actionBtnText}>Copy</Text>
             </TouchableOpacity>
           ) : null}
@@ -301,7 +298,7 @@ function VaultItemCard({
               onPress={withUnlock(() => onShare(item))}
               hitSlop={6}
             >
-              <Feather name="share-2" size={12} color={COLORS.textPrimary} />
+              <Feather name="share-2" size={12} color={colors.textPrimary} />
               <Text style={styles.actionBtnText}>Share</Text>
             </TouchableOpacity>
           ) : null}
@@ -311,7 +308,7 @@ function VaultItemCard({
             onPress={withUnlock(() => onEdit(item))}
             hitSlop={6}
           >
-            <Feather name="edit-2" size={13} color={COLORS.textSecondary} />
+            <Feather name="edit-2" size={13} color={colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -319,7 +316,7 @@ function VaultItemCard({
             onPress={withUnlock(confirmDelete)}
             hitSlop={6}
           >
-            <Feather name="trash-2" size={13} color={COLORS.danger} />
+            <Feather name="trash-2" size={13} color={colors.danger} />
           </TouchableOpacity>
         </View>
       </View>
@@ -331,309 +328,292 @@ export default memo(VaultItemCard);
 
 const mono = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-    marginBottom: 12
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.surfaceElevated,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.badgeText,
-    letterSpacing: 0.7,
-    textTransform: 'uppercase'
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.surfaceSubtle,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 5
-  },
-  metaChipText: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: '600'
-  },
-  pinBtn: {
-    padding: 2
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    lineHeight: 22,
-    marginBottom: 6
-  },
-  bodyText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-    marginTop: 4,
-    marginBottom: 4
-  },
-  pwContainer: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    marginVertical: 6
-  },
-  pwRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 9
-  },
-  pwRowBorder: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border
-  },
-  pwKey: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    width: 42
-  },
-  pwVal: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textPrimary,
-    marginRight: 8
-  },
-  mono: {
-    fontFamily: mono,
-    letterSpacing: 1
-  },
-  copySmallBtn: {
-    backgroundColor: COLORS.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 6
-  },
-  checklistContainer: {
-    marginVertical: 6
-  },
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8
-  },
-  progressTrack: {
-    flex: 1,
-    height: 4,
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginRight: 10
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 2
-  },
-  progressNumber: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: '600'
-  },
-  taskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5
-  },
-  checkbox: {
-    width: 17,
-    height: 17,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderHover,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10
-  },
-  checkboxDone: {
-    backgroundColor: COLORS.textPrimary,
-    borderColor: COLORS.textPrimary
-  },
-  taskLabel: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textPrimary,
-    lineHeight: 18
-  },
-  taskLabelDone: {
-    color: COLORS.textMuted,
-    textDecorationLine: 'line-through'
-  },
-  expandMoreBtn: {
-    paddingVertical: 4
-  },
-  expandMoreText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    fontWeight: '600'
-  },
-  linkBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginVertical: 6
-  },
-  linkDomain: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2
-  },
-  linkUrl: {
-    fontSize: 13,
-    color: COLORS.textSecondary
-  },
-  thumbRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8
-  },
-  thumbImg: {
-    width: 52,
-    height: 52,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceElevated
-  },
-  thumbMore: {
-    width: 52,
-    height: 52,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  thumbMoreText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textSecondary
-  },
-  lockedBox: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 6
-  },
-  lockedText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    fontWeight: '600'
-  },
-  tagWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 10,
-    marginBottom: 2
-  },
-  tagPill: {
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2
-  },
-  tagPillText: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: '500'
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border
-  },
-  dateText: {
-    fontSize: 11,
-    color: COLORS.textMuted
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 6
-  },
-  actionBtnText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.textPrimary
-  },
-  iconActionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center'
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+      marginBottom: 12
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10
+    },
+    badge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.surfaceElevated,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.badgeText,
+      letterSpacing: 0.7,
+      textTransform: 'uppercase'
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    metaChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.surfaceSubtle,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 5
+    },
+    metaChipText: {
+      fontSize: 10,
+      color: colors.textMuted,
+      fontWeight: '600'
+    },
+    pinBtn: {
+      padding: 2
+    },
+    title: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      lineHeight: 22,
+      marginBottom: 6
+    },
+    bodyText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginTop: 4,
+      marginBottom: 4
+    },
+    pwContainer: {
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 12,
+      marginVertical: 6
+    },
+    pwRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 9
+    },
+    pwRowBorder: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    },
+    pwKey: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+      width: 42
+    },
+    pwVal: {
+      flex: 1,
+      fontSize: 13,
+      color: colors.textPrimary,
+      marginRight: 8
+    },
+    mono: {
+      fontFamily: mono,
+      letterSpacing: 1
+    },
+    copySmallBtn: {
+      backgroundColor: colors.surfaceSubtle,
+      borderWidth: 1,
+      borderColor: colors.border,
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 6
+    },
+    checklistContainer: {
+      marginVertical: 6
+    },
+    progressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8
+    },
+    progressTrack: {
+      flex: 1,
+      height: 4,
+      backgroundColor: colors.surfaceSubtle,
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginRight: 10
+    },
+    progressBar: {
+      height: '100%',
+      backgroundColor: colors.textPrimary,
+      borderRadius: 2
+    },
+    progressNumber: {
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '600'
+    },
+    taskRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 5
+    },
+    checkbox: {
+      width: 17,
+      height: 17,
+      borderRadius: 4,
+      borderWidth: 1.5,
+      borderColor: colors.borderHover,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10
+    },
+    checkboxDone: {
+      backgroundColor: colors.solidBtnBg,
+      borderColor: colors.solidBtnBg
+    },
+    taskLabel: {
+      flex: 1,
+      fontSize: 13,
+      color: colors.textPrimary,
+      lineHeight: 18
+    },
+    taskLabelDone: {
+      color: colors.textMuted,
+      textDecorationLine: 'line-through'
+    },
+    expandMoreBtn: {
+      paddingVertical: 4
+    },
+    expandMoreText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '600'
+    },
+    linkBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginVertical: 6
+    },
+    linkDomain: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 2
+    },
+    linkUrl: {
+      fontSize: 13,
+      color: colors.textSecondary
+    },
+    thumbRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 8
+    },
+    thumbImg: {
+      width: 52,
+      height: 52,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated
+    },
+    thumbMore: {
+      width: 52,
+      height: 52,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    thumbMoreText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary
+    },
+    lockedBox: {
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginVertical: 6
+    },
+    lockedText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '600'
+    },
+    footerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 12,
+      marginTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    },
+    dateText: {
+      fontSize: 11,
+      color: colors.textMuted
+    },
+    actions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    actionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 6
+    },
+    actionBtnText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textPrimary
+    },
+    iconActionBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+      alignItems: 'center',
+      justifyContent: 'center'
+    }
+  });

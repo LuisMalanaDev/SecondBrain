@@ -26,7 +26,8 @@ const DEFAULT_SETTINGS = {
   lockOnAppOpen: false,
   biometricEnabled: false,
   autoLockOnBackground: true,
-  autoClearClipboard: true
+  autoClearClipboard: true,
+  themeMode: 'dark'
 };
 
 let dbInitPromise = null;

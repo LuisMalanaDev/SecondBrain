@@ -2,7 +2,7 @@
 // src/components/SectionDropdown.js — Modern Section Switcher Dropdown
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -13,7 +13,7 @@ import {
   Pressable
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS, VAULT_SECTIONS } from '../theme/colors';
+import { useTheme, VAULT_SECTIONS } from '../theme/colors';
 import { formatPeso, hapticTap } from '../utils/helpers';
 
 export default function SectionDropdown({
@@ -22,12 +22,15 @@ export default function SectionDropdown({
   stats,
   expenseBalance = 0
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [open, setOpen] = useState(false);
 
   const current = VAULT_SECTIONS.find((s) => s.id === activeSection) || VAULT_SECTIONS[0];
 
   function getRightBadge(sectionId) {
-    if (sectionId === 'HOME') return null;
+    if (sectionId === 'HOME' || sectionId === 'ANALYTICS') return null;
     if (sectionId === 'EXPENSES') return formatPeso(expenseBalance);
     if (sectionId === 'NOTE') return String(stats.notes || 0);
     if (sectionId === 'VOICE') return String(stats.voiceMemos || 0);
@@ -42,7 +45,6 @@ export default function SectionDropdown({
 
   return (
     <>
-      {/* Trigger Bar */}
       <View style={styles.triggerWrap}>
         <TouchableOpacity
           style={styles.triggerBtn}
@@ -54,7 +56,7 @@ export default function SectionDropdown({
         >
           <View style={styles.triggerLeft}>
             <View style={styles.triggerIconBox}>
-              <Feather name={current.icon} size={14} color={COLORS.textPrimary} />
+              <Feather name={current.icon} size={14} color={colors.textPrimary} />
             </View>
             <View>
               <Text style={styles.triggerLabel}>{current.label}</Text>
@@ -68,12 +70,11 @@ export default function SectionDropdown({
                 <Text style={styles.countPillText}>{activeBadge}</Text>
               </View>
             )}
-            <Feather name="chevron-down" size={16} color={COLORS.textSecondary} />
+            <Feather name="chevron-down" size={16} color={colors.textSecondary} />
           </View>
         </TouchableOpacity>
       </View>
 
-      {/* Dropdown Menu Modal */}
       <Modal
         visible={open}
         transparent
@@ -85,7 +86,7 @@ export default function SectionDropdown({
             <View style={styles.menuHeader}>
               <Text style={styles.menuHeaderTitle}>SECTIONS</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
-                <Feather name="x" size={16} color={COLORS.textMuted} />
+                <Feather name="x" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -117,7 +118,7 @@ export default function SectionDropdown({
                       <Feather
                         name={sec.icon}
                         size={15}
-                        color={isSelected ? '#000000' : COLORS.textSecondary}
+                        color={isSelected ? colors.solidBtnText : colors.textSecondary}
                       />
                     </View>
 
@@ -133,15 +134,13 @@ export default function SectionDropdown({
                       <Text style={styles.menuDesc}>{sec.description}</Text>
                     </View>
 
-                    {badge !== null && (
-                      <Text style={styles.menuBadge}>{badge}</Text>
-                    )}
+                    {badge !== null && <Text style={styles.menuBadge}>{badge}</Text>}
 
                     {isSelected && (
                       <Feather
                         name="check"
                         size={15}
-                        color={COLORS.textPrimary}
+                        color={colors.textPrimary}
                         style={{ marginLeft: 8 }}
                       />
                     )}
@@ -156,141 +155,142 @@ export default function SectionDropdown({
   );
 }
 
-const styles = StyleSheet.create({
-  triggerWrap: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 8
-  },
-  triggerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10
-  },
-  triggerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1
-  },
-  triggerIconBox: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  triggerLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  triggerSub: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 1
-  },
-  triggerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  countPill: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3
-  },
-  countPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textSecondary
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    justifyContent: 'center',
-    paddingHorizontal: 20
-  },
-  menuCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    overflow: 'hidden'
-  },
-  menuHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.surfaceElevated
-  },
-  menuHeaderTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 1
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    gap: 12
-  },
-  menuItemBorder: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border
-  },
-  menuItemActive: {
-    backgroundColor: COLORS.surfaceElevated
-  },
-  menuIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  menuIconBoxActive: {
-    backgroundColor: COLORS.textPrimary,
-    borderColor: COLORS.textPrimary
-  },
-  menuLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary
-  },
-  menuLabelActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  menuDesc: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 1
-  },
-  menuBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    triggerWrap: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 8
+    },
+    triggerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10
+    },
+    triggerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1
+    },
+    triggerIconBox: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    triggerLabel: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    triggerSub: {
+      fontSize: 11,
+      color: colors.textMuted,
+      marginTop: 1
+    },
+    triggerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    countPill: {
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3
+    },
+    countPillText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary
+    },
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      justifyContent: 'center',
+      paddingHorizontal: 20
+    },
+    menuCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      overflow: 'hidden'
+    },
+    menuHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.surfaceElevated
+    },
+    menuHeaderTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 1
+    },
+    menuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      gap: 12
+    },
+    menuItemBorder: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    },
+    menuItemActive: {
+      backgroundColor: colors.surfaceElevated
+    },
+    menuIconBox: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    menuIconBoxActive: {
+      backgroundColor: colors.solidBtnBg,
+      borderColor: colors.solidBtnBg
+    },
+    menuLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary
+    },
+    menuLabelActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    menuDesc: {
+      fontSize: 11,
+      color: colors.textMuted,
+      marginTop: 1
+    },
+    menuBadge: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    }
+  });

@@ -1,10 +1,9 @@
 // ============================================================================
 // src/components/QuickCaptureModal.js — Modern Minimalist Capture Sheet
 // Types: NOTE | VOICE | PASSWORD | CHECKLIST | LINK
-// Features: Smart Link Paste, Offline Voice Recorder, Private Photo/ID Vault
 // ============================================================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -28,7 +27,7 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync
 } from 'expo-audio';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import {
   makeId,
   nowIso,
@@ -74,13 +73,15 @@ export default function QuickCaptureModal({
   onSave,
   onClose
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [draft, setDraft] = useState(blankDraft(initialType));
   const [newTask, setNewTask] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState(null);
   const [error, setError] = useState('');
 
-  // Audio Recorder
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
 
@@ -96,7 +97,6 @@ export default function QuickCaptureModal({
     setError('');
     setDetectedUrl(null);
 
-    // Smart Clipboard Link Detector when creating a new item
     if (!initialItem) {
       Clipboard.getStringAsync()
         .then((clip) => {
@@ -108,7 +108,6 @@ export default function QuickCaptureModal({
     }
   }, [visible, initialItem, initialType]);
 
-  // Stop recording safely if modal is dismissed mid-recording
   useEffect(() => {
     if (!visible && recorderState?.isRecording) {
       recorder.stop().catch(() => {});
@@ -277,7 +276,7 @@ export default function QuickCaptureModal({
     });
   }
 
-  const strength = passwordStrength(draft.secretPassword);
+  const strength = passwordStrength(draft.secretPassword, colors);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -286,23 +285,21 @@ export default function QuickCaptureModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.sheet}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{isEdit ? 'Edit Item' : 'New Item'}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>
-              <Feather name="x" size={16} color={COLORS.textSecondary} />
+              <Feather name="x" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {/* Smart Clipboard URL Banner */}
             {!isEdit && detectedUrl && (
               <TouchableOpacity
                 style={styles.clipboardBanner}
                 onPress={applyDetectedLink}
                 activeOpacity={0.75}
               >
-                <Feather name="link-2" size={14} color={COLORS.textPrimary} />
+                <Feather name="link-2" size={14} color={colors.textPrimary} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.clipboardTitle}>
                     Link in clipboard ({extractDomain(detectedUrl)})
@@ -315,7 +312,6 @@ export default function QuickCaptureModal({
               </TouchableOpacity>
             )}
 
-            {/* Segmented Type Selector */}
             <View style={styles.segmentContainer}>
               {TYPES.map((t) => {
                 const active = draft.type === t.id;
@@ -345,7 +341,6 @@ export default function QuickCaptureModal({
               })}
             </View>
 
-            {/* Title */}
             <Text style={styles.label}>
               {draft.type === 'VOICE' ? 'TITLE (OPTIONAL)' : 'TITLE'}
             </Text>
@@ -362,7 +357,7 @@ export default function QuickCaptureModal({
                   ? 'Video, article, or product title'
                   : 'Note title'
               }
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={draft.title}
               onChangeText={(v) => {
                 set({ title: v });
@@ -370,7 +365,6 @@ export default function QuickCaptureModal({
               }}
             />
 
-            {/* VOICE RECORDER (Primary for VOICE, optional attach for NOTE) */}
             {(draft.type === 'VOICE' || draft.type === 'NOTE') && (
               <View style={styles.sectionBlock}>
                 <Text style={styles.label}>
@@ -396,15 +390,15 @@ export default function QuickCaptureModal({
                         style={styles.smallOutlineBtn}
                         onPress={startVoiceRecording}
                       >
-                        <Feather name="mic" size={12} color={COLORS.textSecondary} />
+                        <Feather name="mic" size={12} color={colors.textSecondary} />
                         <Text style={styles.smallOutlineText}>Re-record</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.smallOutlineBtn}
                         onPress={() => set({ audioUri: null, audioDurationMs: 0 })}
                       >
-                        <Feather name="trash-2" size={12} color={COLORS.danger} />
-                        <Text style={[styles.smallOutlineText, { color: COLORS.danger }]}>
+                        <Feather name="trash-2" size={12} color={colors.danger} />
+                        <Text style={[styles.smallOutlineText, { color: colors.danger }]}>
                           Remove Audio
                         </Text>
                       </TouchableOpacity>
@@ -416,21 +410,20 @@ export default function QuickCaptureModal({
                     onPress={startVoiceRecording}
                     activeOpacity={0.75}
                   >
-                    <Feather name="mic" size={15} color={COLORS.textPrimary} />
+                    <Feather name="mic" size={15} color={colors.textPrimary} />
                     <Text style={styles.recordTriggerText}>Tap to Record Voice Memo</Text>
                   </TouchableOpacity>
                 )}
               </View>
             )}
 
-            {/* PASSWORD */}
             {draft.type === 'PASSWORD' && (
               <>
                 <Text style={styles.label}>USERNAME / EMAIL</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Username or email address"
-                  placeholderTextColor={COLORS.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={draft.username}
                   onChangeText={(v) => set({ username: v })}
                   autoCapitalize="none"
@@ -441,7 +434,7 @@ export default function QuickCaptureModal({
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
                     placeholder="Enter or generate password"
-                    placeholderTextColor={COLORS.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     value={draft.secretPassword}
                     onChangeText={(v) => {
                       set({ secretPassword: v });
@@ -461,7 +454,7 @@ export default function QuickCaptureModal({
                     <Feather
                       name={showPw ? 'eye-off' : 'eye'}
                       size={15}
-                      color={COLORS.textSecondary}
+                      color={colors.textSecondary}
                     />
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -499,7 +492,7 @@ export default function QuickCaptureModal({
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. github.com"
-                  placeholderTextColor={COLORS.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={draft.websiteUrl}
                   onChangeText={(v) => set({ websiteUrl: v })}
                   autoCapitalize="none"
@@ -509,14 +502,13 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* LINK */}
             {draft.type === 'LINK' && (
               <>
                 <Text style={styles.label}>URL (FACEBOOK / YOUTUBE / TIKTOK / WEB)</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="https://..."
-                  placeholderTextColor={COLORS.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={draft.websiteUrl}
                   onChangeText={(v) => {
                     set({ websiteUrl: v });
@@ -529,7 +521,6 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* CHECKLIST */}
             {draft.type === 'CHECKLIST' && (
               <>
                 <Text style={styles.label}>TASKS</Text>
@@ -546,7 +537,7 @@ export default function QuickCaptureModal({
                       }}
                       style={[styles.checkbox, c.done && styles.checkboxDone]}
                     >
-                      {c.done && <Feather name="check" size={11} color="#000000" />}
+                      {c.done && <Feather name="check" size={11} color={colors.solidBtnText} />}
                     </TouchableOpacity>
                     <Text style={[styles.taskText, c.done && styles.taskDone]} numberOfLines={2}>
                       {c.text}
@@ -557,7 +548,7 @@ export default function QuickCaptureModal({
                       }
                       hitSlop={8}
                     >
-                      <Feather name="x" size={14} color={COLORS.textMuted} />
+                      <Feather name="x" size={14} color={colors.textMuted} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -565,7 +556,7 @@ export default function QuickCaptureModal({
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
                     placeholder="Add task and tap Add..."
-                    placeholderTextColor={COLORS.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     value={newTask}
                     onChangeText={setNewTask}
                     onSubmitEditing={addTask}
@@ -579,7 +570,6 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* Body Notes */}
             <Text style={styles.label}>
               {draft.type === 'NOTE' ? 'NOTE' : 'NOTES (OPTIONAL)'}
             </Text>
@@ -590,13 +580,12 @@ export default function QuickCaptureModal({
                   ? 'Write your thoughts...'
                   : 'Extra details, recovery codes, or reminder...'
               }
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={draft.content}
               onChangeText={(v) => set({ content: v })}
               multiline
             />
 
-            {/* Private Photo / ID Attachments */}
             {(draft.type === 'NOTE' || draft.type === 'VOICE' || draft.type === 'PASSWORD') && (
               <View style={styles.sectionBlock}>
                 <Text style={styles.label}>PRIVATE PHOTOS / IDs (OPTIONAL)</Text>
@@ -625,21 +614,20 @@ export default function QuickCaptureModal({
                     style={[styles.attachBtn, { flex: 1 }]}
                     onPress={() => pickPhoto(true)}
                   >
-                    <Feather name="camera" size={14} color={COLORS.textSecondary} />
+                    <Feather name="camera" size={14} color={colors.textSecondary} />
                     <Text style={styles.attachBtnText}>Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.attachBtn, { flex: 1 }]}
                     onPress={() => pickPhoto(false)}
                   >
-                    <Feather name="image" size={14} color={COLORS.textSecondary} />
+                    <Feather name="image" size={14} color={colors.textSecondary} />
                     <Text style={styles.attachBtnText}>Gallery</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
-            {/* Toggles */}
             <View style={styles.toggleRow}>
               <TouchableOpacity
                 style={[styles.toggle, draft.isPinned && styles.toggleOn]}
@@ -651,7 +639,7 @@ export default function QuickCaptureModal({
                 <Feather
                   name="bookmark"
                   size={13}
-                  color={draft.isPinned ? COLORS.textPrimary : COLORS.textMuted}
+                  color={draft.isPinned ? colors.textPrimary : colors.textMuted}
                 />
                 <Text style={[styles.toggleText, draft.isPinned && styles.toggleTextOn]}>
                   {draft.isPinned ? 'Pinned' : 'Pin to top'}
@@ -668,7 +656,7 @@ export default function QuickCaptureModal({
                 <Feather
                   name="lock"
                   size={13}
-                  color={draft.isLocked ? COLORS.textPrimary : COLORS.textMuted}
+                  color={draft.isLocked ? colors.textPrimary : colors.textMuted}
                 />
                 <Text style={[styles.toggleText, draft.isLocked && styles.toggleTextOn]}>
                   {draft.isLocked ? 'PIN Protected' : 'Lock with PIN'}
@@ -682,7 +670,6 @@ export default function QuickCaptureModal({
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            {/* Save */}
             <TouchableOpacity style={styles.saveBtn} onPress={save} activeOpacity={0.85}>
               <Text style={styles.saveText}>{isEdit ? 'Save Changes' : 'Save to Vault'}</Text>
             </TouchableOpacity>
@@ -694,400 +681,374 @@ export default function QuickCaptureModal({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-end'
-  },
-  sheet: {
-    maxHeight: '92%',
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 18,
-    paddingTop: 16
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14
-  },
-  headerTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 18,
-    fontWeight: '700'
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  clipboardBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14
-  },
-  clipboardTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  clipboardSub: {
-    fontSize: 11,
-    color: COLORS.textMuted
-  },
-  clipboardAction: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#000000',
-    backgroundColor: COLORS.textPrimary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6
-  },
-  segmentContainer: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 7
-  },
-  segmentBtnActive: {
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  segmentText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  segmentTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  label: {
-    color: COLORS.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 6
-  },
-  input: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    color: COLORS.textPrimary,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    marginBottom: 14
-  },
-  multiInput: {
-    minHeight: 82,
-    textAlignVertical: 'top'
-  },
-  sectionBlock: {
-    marginBottom: 14
-  },
-  recordTriggerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    borderRadius: 10,
-    paddingVertical: 13
-  },
-  recordTriggerText: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  recordingBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.danger,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10
-  },
-  recDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.danger
-  },
-  recStatusText: {
-    flex: 1,
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  stopBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.danger,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 7
-  },
-  stopBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  audioActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4
-  },
-  smallOutlineBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  smallOutlineText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    fontWeight: '600'
-  },
-  attachWrap: {
-    position: 'relative',
-    marginRight: 10
-  },
-  attachThumb: {
-    width: 68,
-    height: 68,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border
-  },
-  attachRemove: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  attachBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingVertical: 10
-  },
-  attachBtnText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '600'
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  iconBtn: {
-    height: 42,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  iconBtnText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  iconBtnPrimary: {
-    backgroundColor: COLORS.surfaceSubtle,
-    borderColor: COLORS.borderHover
-  },
-  iconBtnTextPrimary: {
-    color: COLORS.textPrimary,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  strengthWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 6,
-    marginBottom: 14
-  },
-  strengthTrack: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-    overflow: 'hidden'
-  },
-  strengthBar: {
-    height: 4,
-    borderRadius: 2
-  },
-  strengthText: {
-    fontSize: 11,
-    fontWeight: '700',
-    width: 48,
-    textAlign: 'right'
-  },
-  taskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border
-  },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderHover,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  checkboxDone: {
-    backgroundColor: COLORS.textPrimary,
-    borderColor: COLORS.textPrimary
-  },
-  taskText: {
-    flex: 1,
-    color: COLORS.textPrimary,
-    fontSize: 13
-  },
-  taskDone: {
-    color: COLORS.textMuted,
-    textDecorationLine: 'line-through'
-  },
-  tagWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10
-  },
-  tagChip: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceElevated
-  },
-  tagChipActive: {
-    borderColor: COLORS.textPrimary,
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  tagChipText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  tagChipTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8
-  },
-  toggle: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  toggleOn: {
-    borderColor: COLORS.borderHover,
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  toggleText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  toggleTextOn: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  warn: {
-    color: COLORS.textMuted,
-    fontSize: 11,
-    marginBottom: 8
-  },
-  error: {
-    color: COLORS.danger,
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 8
-  },
-  saveBtn: {
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    marginTop: 6
-  },
-  saveText: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '700'
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      justifyContent: 'flex-end'
+    },
+    sheet: {
+      maxHeight: '92%',
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 18,
+      paddingTop: 16
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14
+    },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: '700'
+    },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    clipboardBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 14
+    },
+    clipboardTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    clipboardSub: {
+      fontSize: 11,
+      color: colors.textMuted
+    },
+    clipboardAction: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.solidBtnText,
+      backgroundColor: colors.solidBtnBg,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6
+    },
+    segmentContainer: {
+      flexDirection: 'row',
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 10,
+      padding: 3,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    segmentBtn: {
+      flex: 1,
+      paddingVertical: 7,
+      alignItems: 'center',
+      borderRadius: 7
+    },
+    segmentBtnActive: {
+      backgroundColor: colors.surface
+    },
+    segmentText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '600'
+    },
+    segmentTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      marginBottom: 6
+    },
+    input: {
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      color: colors.textPrimary,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+      marginBottom: 14
+    },
+    multiInput: {
+      minHeight: 82,
+      textAlignVertical: 'top'
+    },
+    sectionBlock: {
+      marginBottom: 14
+    },
+    recordTriggerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      borderRadius: 10,
+      paddingVertical: 13
+    },
+    recordTriggerText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '600'
+    },
+    recordingBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 10
+    },
+    recDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.danger
+    },
+    recStatusText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '600'
+    },
+    stopBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.danger,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 7
+    },
+    stopBtnText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '700'
+    },
+    audioActions: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 4
+    },
+    smallOutlineBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 7,
+      paddingHorizontal: 10,
+      paddingVertical: 6
+    },
+    smallOutlineText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600'
+    },
+    attachWrap: {
+      position: 'relative',
+      marginRight: 10
+    },
+    attachThumb: {
+      width: 68,
+      height: 68,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    attachRemove: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: 'rgba(0,0,0,0.75)',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    attachBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingVertical: 10
+    },
+    attachBtnText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600'
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    iconBtn: {
+      height: 42,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    iconBtnText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600'
+    },
+    iconBtnPrimary: {
+      backgroundColor: colors.surfaceSubtle,
+      borderColor: colors.borderHover
+    },
+    iconBtnTextPrimary: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700'
+    },
+    strengthWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 6,
+      marginBottom: 14
+    },
+    strengthTrack: {
+      flex: 1,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      overflow: 'hidden'
+    },
+    strengthBar: {
+      height: 4,
+      borderRadius: 2
+    },
+    strengthText: {
+      fontSize: 11,
+      fontWeight: '700',
+      width: 48,
+      textAlign: 'right'
+    },
+    taskRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceElevated,
+      marginBottom: 6,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    checkbox: {
+      width: 18,
+      height: 18,
+      borderRadius: 4,
+      borderWidth: 1.5,
+      borderColor: colors.borderHover,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    checkboxDone: {
+      backgroundColor: colors.solidBtnBg,
+      borderColor: colors.solidBtnBg
+    },
+    taskText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 13
+    },
+    taskDone: {
+      color: colors.textMuted,
+      textDecorationLine: 'line-through'
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 8
+    },
+    toggle: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    toggleOn: {
+      borderColor: colors.borderHover,
+      backgroundColor: colors.surfaceSubtle
+    },
+    toggleText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '600'
+    },
+    toggleTextOn: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    warn: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginBottom: 8
+    },
+    error: {
+      color: colors.danger,
+      fontSize: 12,
+      fontWeight: '600',
+      marginBottom: 8
+    },
+    saveBtn: {
+      backgroundColor: colors.solidBtnBg,
+      borderRadius: 12,
+      paddingVertical: 13,
+      alignItems: 'center',
+      marginTop: 6
+    },
+    saveText: {
+      color: colors.solidBtnText,
+      fontSize: 14,
+      fontWeight: '700'
+    }
+  });

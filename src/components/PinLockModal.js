@@ -3,11 +3,11 @@
 // mode: 'verify' | 'set'
 // ============================================================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { hapticTap, hapticNotify } from '../utils/helpers';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'bio', '0', 'del'];
@@ -23,6 +23,9 @@ export default function PinLockModal({
   onSuccess,
   onCancel
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [entry, setEntry] = useState('');
   const [firstPin, setFirstPin] = useState(null);
   const [error, setError] = useState('');
@@ -127,7 +130,7 @@ export default function PinLockModal({
       <View style={[styles.backdrop, fullScreen && styles.backdropFull]}>
         <View style={styles.card}>
           <View style={styles.lockIconBox}>
-            <Feather name="lock" size={20} color={COLORS.textPrimary} />
+            <Feather name="lock" size={20} color={colors.textPrimary} />
           </View>
           <Text style={styles.title}>{heading}</Text>
           <Text style={styles.sub}>{sub}</Text>
@@ -153,9 +156,9 @@ export default function PinLockModal({
                   onPress={() => pressKey(k)}
                 >
                   {isBio ? (
-                    <Ionicons name="finger-print-outline" size={26} color={COLORS.textPrimary} />
+                    <Ionicons name="finger-print-outline" size={26} color={colors.textPrimary} />
                   ) : isDel ? (
-                    <Feather name="delete" size={22} color={COLORS.textSecondary} />
+                    <Feather name="delete" size={22} color={colors.textSecondary} />
                   ) : (
                     <Text style={styles.keyText}>{k}</Text>
                   )}
@@ -175,69 +178,70 @@ export default function PinLockModal({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.88)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20
-  },
-  backdropFull: { backgroundColor: COLORS.background },
-  card: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 28,
-    paddingHorizontal: 22,
-    alignItems: 'center'
-  },
-  lockIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12
-  },
-  title: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '700' },
-  sub: { color: COLORS.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' },
-  dotsRow: { flexDirection: 'row', gap: 16, marginTop: 22 },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderHover
-  },
-  dotFilled: { backgroundColor: COLORS.textPrimary, borderColor: COLORS.textPrimary },
-  error: { color: COLORS.danger, fontSize: 12, fontWeight: '600', height: 18, marginTop: 10 },
-  pad: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    width: 264,
-    marginTop: 6
-  },
-  key: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    margin: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  keyGhost: { backgroundColor: 'transparent', borderColor: 'transparent' },
-  keyText: { color: COLORS.textPrimary, fontSize: 24, fontWeight: '600' },
-  cancelBtn: { marginTop: 10, padding: 8 },
-  cancelText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '700' }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20
+    },
+    backdropFull: { backgroundColor: colors.background },
+    card: {
+      width: '100%',
+      maxWidth: 360,
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 28,
+      paddingHorizontal: 22,
+      alignItems: 'center'
+    },
+    lockIconBox: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12
+    },
+    title: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+    sub: { color: colors.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' },
+    dotsRow: { flexDirection: 'row', gap: 16, marginTop: 22 },
+    dot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: colors.borderHover
+    },
+    dotFilled: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
+    error: { color: colors.danger, fontSize: 12, fontWeight: '600', height: 18, marginTop: 10 },
+    pad: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      width: 264,
+      marginTop: 6
+    },
+    key: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      margin: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    keyGhost: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    keyText: { color: colors.textPrimary, fontSize: 24, fontWeight: '600' },
+    cancelBtn: { marginTop: 10, padding: 8 },
+    cancelText: { color: colors.textSecondary, fontSize: 14, fontWeight: '700' }
+  });

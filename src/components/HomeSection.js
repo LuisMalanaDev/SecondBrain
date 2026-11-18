@@ -13,7 +13,7 @@ import {
   Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import {
   formatPeso,
   formatDate,
@@ -99,6 +99,9 @@ export default function HomeSection({
   onCopy,
   onShare
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [globalQuery, setGlobalQuery] = useState('');
 
   const matchingItems = useMemo(() => {
@@ -137,20 +140,20 @@ export default function HomeSection({
           <Feather
             name="search"
             size={15}
-            color={COLORS.textMuted}
+            color={colors.textMuted}
             style={{ marginRight: 8 }}
           />
           <TextInput
             style={styles.searchInput}
             placeholder="Global search (notes, passwords, links, expenses)..."
-            placeholderTextColor={COLORS.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={globalQuery}
             onChangeText={setGlobalQuery}
             returnKeyType="search"
           />
           {isSearching && (
             <TouchableOpacity onPress={() => setGlobalQuery('')} hitSlop={8}>
-              <Feather name="x" size={15} color={COLORS.textMuted} />
+              <Feather name="x" size={15} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -175,7 +178,7 @@ export default function HomeSection({
 
             {matchingItems.length === 0 && matchingExpenses.length === 0 ? (
               <View style={styles.noResultsBox}>
-                <Feather name="search" size={22} color={COLORS.textMuted} />
+                <Feather name="search" size={22} color={colors.textMuted} />
                 <Text style={styles.noResultsTitle}>Nothing matched "{globalQuery}"</Text>
                 <Text style={styles.noResultsSub}>
                   Try another keyword across your notes, links, tasks, passwords, or expenses.
@@ -216,7 +219,7 @@ export default function HomeSection({
                             <Feather
                               name={isCashIn ? 'arrow-down-left' : 'arrow-up-right'}
                               size={14}
-                              color={isCashIn ? COLORS.success : COLORS.textSecondary}
+                              color={isCashIn ? colors.success : colors.textSecondary}
                             />
                           </View>
                           <View style={{ flex: 1 }}>
@@ -229,7 +232,7 @@ export default function HomeSection({
                           <Text
                             style={[
                               styles.expAmount,
-                              isCashIn && { color: COLORS.success }
+                              isCashIn && { color: colors.success }
                             ]}
                           >
                             {isCashIn ? '+' : '-'}
@@ -245,10 +248,9 @@ export default function HomeSection({
           </>
         ) : (
           <>
-            {/* Hero Intro Card */}
             <View style={styles.heroCard}>
               <View style={styles.heroTag}>
-                <Feather name="shield" size={11} color={COLORS.textSecondary} />
+                <Feather name="shield" size={11} color={colors.textSecondary} />
                 <Text style={styles.heroTagText}>100% OFFLINE • STANDALONE</Text>
               </View>
 
@@ -260,7 +262,6 @@ export default function HomeSection({
               </Text>
             </View>
 
-            {/* Quick Snapshot Cards */}
             <View style={styles.snapshotRow}>
               <TouchableOpacity
                 style={styles.snapshotCard}
@@ -274,7 +275,7 @@ export default function HomeSection({
                 <Text
                   style={[
                     styles.snapshotValue,
-                    expenseStats.balance < 0 && { color: COLORS.danger }
+                    expenseStats.balance < 0 && { color: colors.danger }
                   ]}
                   numberOfLines={1}
                 >
@@ -299,7 +300,6 @@ export default function HomeSection({
               </TouchableOpacity>
             </View>
 
-            {/* Feature Guide */}
             <Text style={styles.sectionHeading}>WHAT THIS APP CAN DO</Text>
 
             <View style={styles.guideList}>
@@ -314,7 +314,7 @@ export default function HomeSection({
                   activeOpacity={0.7}
                 >
                   <View style={styles.guideIconBox}>
-                    <Feather name={item.icon} size={16} color={COLORS.textPrimary} />
+                    <Feather name={item.icon} size={16} color={colors.textPrimary} />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -325,14 +325,13 @@ export default function HomeSection({
                     <Text style={styles.guideSummary}>{item.summary}</Text>
                   </View>
 
-                  <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
+                  <Feather name="chevron-right" size={16} color={colors.textMuted} />
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* Footer Note */}
             <View style={styles.footerNote}>
-              <Feather name="database" size={13} color={COLORS.textMuted} />
+              <Feather name="database" size={13} color={colors.textMuted} />
               <Text style={styles.footerNoteText}>
                 Saved locally via SQLite & SecureStore. Use Global Search above or the
                 Sections dropdown to jump anywhere.
@@ -345,240 +344,241 @@ export default function HomeSection({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 2,
-    paddingBottom: 8
-  },
-  searchInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8
-  },
-  searchInput: {
-    flex: 1,
-    color: COLORS.textPrimary,
-    fontSize: 13.5
-  },
-  scroll: {
-    flex: 1
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 100
-  },
-  resultsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8
-  },
-  clearLink: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-    marginBottom: 10
-  },
-  noResultsBox: {
-    alignItems: 'center',
-    paddingVertical: 50,
-    paddingHorizontal: 20,
-    gap: 8
-  },
-  noResultsTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  noResultsSub: {
-    fontSize: 12.5,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 18
-  },
-  expResultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    gap: 10
-  },
-  expIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  expTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textPrimary
-  },
-  expMeta: {
-    fontSize: 11,
-    color: COLORS.textMuted
-  },
-  expAmount: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  heroCard: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 14
-  },
-  heroTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 5,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: 12
-  },
-  heroTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-    letterSpacing: 0.7
-  },
-  heroTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    letterSpacing: -0.3,
-    marginBottom: 8
-  },
-  heroBody: {
-    fontSize: 13.5,
-    color: COLORS.textSecondary,
-    lineHeight: 20
-  },
-  snapshotRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 22
-  },
-  snapshotCard: {
-    flex: 1,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    padding: 14
-  },
-  snapshotLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.7,
-    marginBottom: 5
-  },
-  snapshotValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: 4
-  },
-  snapshotHint: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    fontWeight: '600'
-  },
-  sectionHeading: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.8,
-    marginBottom: 10
-  },
-  guideList: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 18
-  },
-  guideRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 12
-  },
-  guideRowBorder: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border
-  },
-  guideIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: 2
-  },
-  guideTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 3
-  },
-  guideTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  guideCount: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  guideSummary: {
-    fontSize: 12.5,
-    color: COLORS.textSecondary,
-    lineHeight: 18
-  },
-  footerNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 6
-  },
-  footerNoteText: {
-    flex: 1,
-    fontSize: 11.5,
-    color: COLORS.textMuted,
-    lineHeight: 16
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1
+    },
+    searchContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 2,
+      paddingBottom: 8
+    },
+    searchInputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 10 : 8
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 13.5
+    },
+    scroll: {
+      flex: 1
+    },
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 100
+    },
+    resultsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8
+    },
+    clearLink: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      marginBottom: 10
+    },
+    noResultsBox: {
+      alignItems: 'center',
+      paddingVertical: 50,
+      paddingHorizontal: 20,
+      gap: 8
+    },
+    noResultsTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    noResultsSub: {
+      fontSize: 12.5,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 18
+    },
+    expResultRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 8,
+      gap: 10
+    },
+    expIconBox: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    expTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary
+    },
+    expMeta: {
+      fontSize: 11,
+      color: colors.textMuted
+    },
+    expAmount: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    heroCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      padding: 18,
+      marginBottom: 14
+    },
+    heroTag: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 5,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      marginBottom: 12
+    },
+    heroTagText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      letterSpacing: 0.7
+    },
+    heroTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      letterSpacing: -0.3,
+      marginBottom: 8
+    },
+    heroBody: {
+      fontSize: 13.5,
+      color: colors.textSecondary,
+      lineHeight: 20
+    },
+    snapshotRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 22
+    },
+    snapshotCard: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 14
+    },
+    snapshotLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.7,
+      marginBottom: 5
+    },
+    snapshotValue: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 4
+    },
+    snapshotHint: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600'
+    },
+    sectionHeading: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.8,
+      marginBottom: 10
+    },
+    guideList: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      overflow: 'hidden',
+      marginBottom: 18
+    },
+    guideRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 14,
+      gap: 12
+    },
+    guideRowBorder: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    },
+    guideIconBox: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'flex-start',
+      marginTop: 2
+    },
+    guideTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 3
+    },
+    guideTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    guideCount: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    guideSummary: {
+      fontSize: 12.5,
+      color: colors.textSecondary,
+      lineHeight: 18
+    },
+    footerNote: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 6
+    },
+    footerNoteText: {
+      flex: 1,
+      fontSize: 11.5,
+      color: colors.textMuted,
+      lineHeight: 16
+    }
+  });

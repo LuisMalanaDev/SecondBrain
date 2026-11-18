@@ -2,19 +2,21 @@
 // src/components/VoicePlayer.js — Clean Monochrome Offline Voice Memo Player
 // ============================================================================
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { formatDuration, hapticTap } from '../utils/helpers';
 
 export default function VoicePlayer({ uri, durationMs = 0, compact = false }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const player = useAudioPlayer(uri ? { uri } : null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
 
   useEffect(() => {
-    // Reset to start when playback completes
     if (status?.didJustFinish) {
       player.seekTo(0).catch(() => {});
     }
@@ -31,10 +33,7 @@ export default function VoicePlayer({ uri, durationMs = 0, compact = false }) {
           allowsRecording: false,
           playsInSilentMode: true
         });
-        if (
-          status?.duration > 0 &&
-          status?.currentTime >= status.duration - 0.15
-        ) {
+        if (status?.duration > 0 && status?.currentTime >= status.duration - 0.15) {
           await player.seekTo(0);
         }
         player.play();
@@ -52,7 +51,7 @@ export default function VoicePlayer({ uri, durationMs = 0, compact = false }) {
         <Feather
           name={status?.playing ? 'pause' : 'play'}
           size={14}
-          color="#000000"
+          color={colors.solidBtnText}
           style={!status?.playing && { marginLeft: 1.5 }}
         />
       </TouchableOpacity>
@@ -70,52 +69,53 @@ export default function VoicePlayer({ uri, durationMs = 0, compact = false }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginVertical: 6,
-    gap: 12
-  },
-  compactContainer: {
-    paddingVertical: 9
-  },
-  playBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.textPrimary,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  trackArea: {
-    flex: 1
-  },
-  trackBg: {
-    height: 3,
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 5
-  },
-  trackFill: {
-    height: '100%',
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 2
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
-  timeText: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: '600'
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginVertical: 6,
+      gap: 12
+    },
+    compactContainer: {
+      paddingVertical: 9
+    },
+    playBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.solidBtnBg,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    trackArea: {
+      flex: 1
+    },
+    trackBg: {
+      height: 3,
+      backgroundColor: colors.surfaceSubtle,
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginBottom: 5
+    },
+    trackFill: {
+      height: '100%',
+      backgroundColor: colors.textPrimary,
+      borderRadius: 2
+    },
+    timeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between'
+    },
+    timeText: {
+      fontSize: 10,
+      color: colors.textMuted,
+      fontWeight: '600'
+    }
+  });

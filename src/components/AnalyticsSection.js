@@ -11,7 +11,7 @@ import {
   StyleSheet
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import {
   toLocalDateKey,
   addDaysToDateKey,
@@ -36,6 +36,9 @@ export default function AnalyticsSection({
   stats,
   onSelectSection
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [period, setPeriod] = useState('7D');
   const todayKey = toLocalDateKey(new Date());
   const [customDateKey, setCustomDateKey] = useState(todayKey);
@@ -85,7 +88,6 @@ export default function AnalyticsSection({
     return Math.max(0, Math.min(100, raw));
   }, [flow]);
 
-  // 7-Day Daily Bar Chart Data
   const last7Days = useMemo(() => {
     const days = [];
     for (let i = -6; i <= 0; i++) {
@@ -119,7 +121,6 @@ export default function AnalyticsSection({
     [last7Days, selectedDayKey]
   );
 
-  // Category Breakdown
   const categoryBreakdown = useMemo(() => {
     const map = {};
     const onlySpent = periodExpenses.filter((e) => e.kind !== 'CASH_IN');
@@ -132,7 +133,6 @@ export default function AnalyticsSection({
     return Object.values(map).sort((a, b) => b.amount - a.amount);
   }, [periodExpenses]);
 
-  // Top Expenses
   const topExpenses = useMemo(() => {
     return [...periodExpenses]
       .filter((e) => e.kind !== 'CASH_IN')
@@ -150,7 +150,6 @@ export default function AnalyticsSection({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Period Selector */}
         <View style={styles.periodRow}>
           {PERIODS.map((p) => {
             const active = period === p.id;
@@ -176,7 +175,7 @@ export default function AnalyticsSection({
                     <Feather
                       name="calendar"
                       size={11}
-                      color={active ? COLORS.textPrimary : COLORS.textMuted}
+                      color={active ? colors.textPrimary : colors.textMuted}
                     />
                   )}
                   <Text
@@ -191,11 +190,10 @@ export default function AnalyticsSection({
           })}
         </View>
 
-        {/* Cash Flow 2x2 Summary */}
         <View style={styles.gridRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>CASH ADDED</Text>
-            <Text style={[styles.statVal, { color: COLORS.success }]}>
+            <Text style={[styles.statVal, { color: colors.success }]}>
               +{formatPeso(flow.totalCashIn)}
             </Text>
           </View>
@@ -212,7 +210,7 @@ export default function AnalyticsSection({
             <Text
               style={[
                 styles.statVal,
-                flow.balance < 0 && { color: COLORS.danger }
+                flow.balance < 0 && { color: colors.danger }
               ]}
             >
               {formatPeso(flow.balance)}
@@ -233,162 +231,158 @@ export default function AnalyticsSection({
           </View>
         </View>
 
-      {/* 7-Day Daily Spending Bar Chart */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>LAST 7 DAYS SPENDING</Text>
-          <TouchableOpacity onPress={() => onSelectSection('EXPENSES')} hitSlop={8}>
-            <Text style={styles.cardLink}>Open Ledger ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {selectedDayData && (
-          <View style={styles.dayFocusStrip}>
-            <Text style={styles.dayFocusTitle}>
-              {formatShortDate(selectedDayData.key)}
-            </Text>
-            <Text style={styles.dayFocusNums}>
-              +{formatPeso(selectedDayData.cashIn)} cash • -{formatPeso(selectedDayData.spent)} spent
-            </Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>LAST 7 DAYS SPENDING</Text>
+            <TouchableOpacity onPress={() => onSelectSection('EXPENSES')} hitSlop={8}>
+              <Text style={styles.cardLink}>Open Ledger ›</Text>
+            </TouchableOpacity>
           </View>
-        )}
 
-        <View style={styles.chartArea}>
-          {last7Days.map((d) => {
-            const heightPct =
-              d.spent > 0 ? Math.max(8, Math.round((d.spent / maxDaySpent) * 100)) : 4;
-            const isSelected = d.key === selectedDayData?.key;
-            return (
-              <TouchableOpacity
-                key={d.key}
-                style={styles.barCol}
-                onPress={() => {
-                  hapticTap('light');
-                  setSelectedDayKey(d.key);
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.barTrack}>
-                  <View
-                    style={[
-                      styles.barFill,
-                      { height: `${heightPct}%` },
-                      d.spent === 0 && styles.barEmpty,
-                      isSelected && d.spent > 0 && styles.barSelected
-                    ]}
-                  />
-                </View>
-                <Text
-                  style={[styles.barDayLabel, isSelected && styles.barDayLabelActive]}
-                  numberOfLines={1}
-                >
-                  {d.dayName}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+          {selectedDayData && (
+            <View style={styles.dayFocusStrip}>
+              <Text style={styles.dayFocusTitle}>
+                {formatShortDate(selectedDayData.key)}
+              </Text>
+              <Text style={styles.dayFocusNums}>
+                +{formatPeso(selectedDayData.cashIn)} cash • -{formatPeso(selectedDayData.spent)} spent
+              </Text>
+            </View>
+          )}
 
-      {/* Category Breakdown */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>BY CATEGORY</Text>
-        {categoryBreakdown.length === 0 ? (
-          <Text style={styles.emptySmall}>No expenses logged in this period.</Text>
-        ) : (
-          <View style={{ marginTop: 10, gap: 12 }}>
-            {categoryBreakdown.map((cat) => {
-              const pct =
-                flow.totalSpent > 0
-                  ? Math.round((cat.amount / flow.totalSpent) * 100)
-                  : 0;
+          <View style={styles.chartArea}>
+            {last7Days.map((d) => {
+              const heightPct =
+                d.spent > 0 ? Math.max(8, Math.round((d.spent / maxDaySpent) * 100)) : 4;
+              const isSelected = d.key === selectedDayData?.key;
               return (
-                <View key={cat.category}>
-                  <View style={styles.catRowTop}>
-                    <Text style={styles.catName}>
-                      {cat.category}{' '}
-                      <Text style={styles.catCount}>({cat.count}x)</Text>
-                    </Text>
-                    <Text style={styles.catAmount}>
-                      {formatPeso(cat.amount)} • {pct}%
-                    </Text>
+                <TouchableOpacity
+                  key={d.key}
+                  style={styles.barCol}
+                  onPress={() => {
+                    hapticTap('light');
+                    setSelectedDayKey(d.key);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.barTrack}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        { height: `${heightPct}%` },
+                        d.spent === 0 && styles.barEmpty,
+                        isSelected && d.spent > 0 && styles.barSelected
+                      ]}
+                    />
                   </View>
-                  <View style={styles.catBarTrack}>
-                    <View style={[styles.catBarFill, { width: `${pct}%` }]} />
-                  </View>
-                </View>
+                  <Text
+                    style={[styles.barDayLabel, isSelected && styles.barDayLabelActive]}
+                    numberOfLines={1}
+                  >
+                    {d.dayName}
+                  </Text>
+                </TouchableOpacity>
               );
             })}
           </View>
-        )}
-      </View>
+        </View>
 
-      {/* Top Expenses */}
-      {topExpenses.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>TOP EXPENSES</Text>
-          <View style={{ marginTop: 8 }}>
-            {topExpenses.map((exp, idx) => (
-              <View
-                key={exp.id}
-                style={[styles.topRow, idx > 0 && styles.topRowBorder]}
-              >
-                <Text style={styles.topRank}>{idx + 1}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.topTitle} numberOfLines={1}>
-                    {exp.title}
-                  </Text>
-                  <Text style={styles.topMeta}>
-                    {exp.category || 'Expense'} • {formatShortDate(exp.createdAt)}
-                  </Text>
-                </View>
-                <Text style={styles.topAmt}>-{formatPeso(exp.amount)}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Vault Summary */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>VAULT OVERVIEW</Text>
-        <View style={styles.vaultStatsGrid}>
-          <View style={styles.vaultChip}>
-            <Feather name="file-text" size={13} color={COLORS.textSecondary} />
-            <Text style={styles.vaultChipText}>{stats.notes || 0} Notes</Text>
-          </View>
-          <View style={styles.vaultChip}>
-            <Feather name="mic" size={13} color={COLORS.textSecondary} />
-            <Text style={styles.vaultChipText}>{stats.voiceMemos || 0} Voice</Text>
-          </View>
-          <View style={styles.vaultChip}>
-            <Feather name="lock" size={13} color={COLORS.textSecondary} />
-            <Text style={styles.vaultChipText}>{stats.passwords || 0} Passwords</Text>
-          </View>
-          <View style={styles.vaultChip}>
-            <Feather name="link-2" size={13} color={COLORS.textSecondary} />
-            <Text style={styles.vaultChipText}>{stats.links || 0} Links</Text>
-          </View>
-          <View style={styles.vaultChip}>
-            <Feather name="bookmark" size={13} color={COLORS.textSecondary} />
-            <Text style={styles.vaultChipText}>{stats.pinned || 0} Pinned</Text>
-          </View>
-        </View>
-
-        {stats.tasksTotal > 0 && (
-          <View style={styles.taskSummary}>
-            <View style={styles.catRowTop}>
-              <Text style={styles.catName}>Checklist Completion</Text>
-              <Text style={styles.catAmount}>
-                {stats.tasksDone}/{stats.tasksTotal} ({taskPct}%)
-              </Text>
+          <Text style={styles.cardTitle}>BY CATEGORY</Text>
+          {categoryBreakdown.length === 0 ? (
+            <Text style={styles.emptySmall}>No expenses logged in this period.</Text>
+          ) : (
+            <View style={{ marginTop: 10, gap: 12 }}>
+              {categoryBreakdown.map((cat) => {
+                const pct =
+                  flow.totalSpent > 0
+                    ? Math.round((cat.amount / flow.totalSpent) * 100)
+                    : 0;
+                return (
+                  <View key={cat.category}>
+                    <View style={styles.catRowTop}>
+                      <Text style={styles.catName}>
+                        {cat.category}{' '}
+                        <Text style={styles.catCount}>({cat.count}x)</Text>
+                      </Text>
+                      <Text style={styles.catAmount}>
+                        {formatPeso(cat.amount)} • {pct}%
+                      </Text>
+                    </View>
+                    <View style={styles.catBarTrack}>
+                      <View style={[styles.catBarFill, { width: `${pct}%` }]} />
+                    </View>
+                  </View>
+                );
+              })}
             </View>
-            <View style={styles.catBarTrack}>
-              <View style={[styles.catBarFill, { width: `${taskPct}%` }]} />
+          )}
+        </View>
+
+        {topExpenses.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>TOP EXPENSES</Text>
+            <View style={{ marginTop: 8 }}>
+              {topExpenses.map((exp, idx) => (
+                <View
+                  key={exp.id}
+                  style={[styles.topRow, idx > 0 && styles.topRowBorder]}
+                >
+                  <Text style={styles.topRank}>{idx + 1}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.topTitle} numberOfLines={1}>
+                      {exp.title}
+                    </Text>
+                    <Text style={styles.topMeta}>
+                      {exp.category || 'Expense'} • {formatShortDate(exp.createdAt)}
+                    </Text>
+                  </View>
+                  <Text style={styles.topAmt}>-{formatPeso(exp.amount)}</Text>
+                </View>
+              ))}
             </View>
           </View>
         )}
-      </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>VAULT OVERVIEW</Text>
+          <View style={styles.vaultStatsGrid}>
+            <View style={styles.vaultChip}>
+              <Feather name="file-text" size={13} color={colors.textSecondary} />
+              <Text style={styles.vaultChipText}>{stats.notes || 0} Notes</Text>
+            </View>
+            <View style={styles.vaultChip}>
+              <Feather name="mic" size={13} color={colors.textSecondary} />
+              <Text style={styles.vaultChipText}>{stats.voiceMemos || 0} Voice</Text>
+            </View>
+            <View style={styles.vaultChip}>
+              <Feather name="lock" size={13} color={colors.textSecondary} />
+              <Text style={styles.vaultChipText}>{stats.passwords || 0} Passwords</Text>
+            </View>
+            <View style={styles.vaultChip}>
+              <Feather name="link-2" size={13} color={colors.textSecondary} />
+              <Text style={styles.vaultChipText}>{stats.links || 0} Links</Text>
+            </View>
+            <View style={styles.vaultChip}>
+              <Feather name="bookmark" size={13} color={colors.textSecondary} />
+              <Text style={styles.vaultChipText}>{stats.pinned || 0} Pinned</Text>
+            </View>
+          </View>
+
+          {stats.tasksTotal > 0 && (
+            <View style={styles.taskSummary}>
+              <View style={styles.catRowTop}>
+                <Text style={styles.catName}>Checklist Completion</Text>
+                <Text style={styles.catAmount}>
+                  {stats.tasksDone}/{stats.tasksTotal} ({taskPct}%)
+                </Text>
+              </View>
+              <View style={styles.catBarTrack}>
+                <View style={[styles.catBarFill, { width: `${taskPct}%` }]} />
+              </View>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       <DatePickerModal
@@ -408,262 +402,263 @@ export default function AnalyticsSection({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 90
-  },
-  periodRow: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 14
-  },
-  periodBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 7
-  },
-  periodBtnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4
-  },
-  periodBtnActive: {
-    backgroundColor: COLORS.surfaceElevated
-  },
-  periodText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  periodTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    padding: 14
-  },
-  statLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.7,
-    marginBottom: 5
-  },
-  statVal: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textPrimary
-  },
-  statSub: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10
-  },
-  cardTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.8
-  },
-  cardLink: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary
-  },
-  dayFocusStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    marginBottom: 14
-  },
-  dayFocusTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  dayFocusNums: {
-    fontSize: 11.5,
-    color: COLORS.textSecondary,
-    fontWeight: '500'
-  },
-  chartArea: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    height: 120,
-    gap: 8
-  },
-  barCol: {
-    flex: 1,
-    alignItems: 'center',
-    height: '100%'
-  },
-  barTrack: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 26,
-    justifyContent: 'flex-end',
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 6,
-    overflow: 'hidden',
-    marginBottom: 6
-  },
-  barFill: {
-    width: '100%',
-    backgroundColor: COLORS.textSecondary,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4
-  },
-  barSelected: {
-    backgroundColor: COLORS.textPrimary
-  },
-  barEmpty: {
-    backgroundColor: COLORS.border
-  },
-  barDayLabel: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: '600'
-  },
-  barDayLabelActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  emptySmall: {
-    fontSize: 12.5,
-    color: COLORS.textMuted,
-    marginTop: 10
-  },
-  catRowTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6
-  },
-  catName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textPrimary
-  },
-  catCount: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: '500'
-  },
-  catAmount: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary
-  },
-  catBarTrack: {
-    height: 5,
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: 3,
-    overflow: 'hidden'
-  },
-  catBarFill: {
-    height: '100%',
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 3
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    gap: 10
-  },
-  topRowBorder: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border
-  },
-  topRank: {
-    width: 20,
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textMuted
-  },
-  topTitle: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: COLORS.textPrimary
-  },
-  topMeta: {
-    fontSize: 11,
-    color: COLORS.textMuted
-  },
-  topAmt: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  vaultStatsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10
-  },
-  vaultChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  vaultChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary
-  },
-  taskSummary: {
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1
+    },
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 90
+    },
+    periodRow: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      padding: 3,
+      marginBottom: 14
+    },
+    periodBtn: {
+      flex: 1,
+      paddingVertical: 7,
+      paddingHorizontal: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 7
+    },
+    periodBtnInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4
+    },
+    periodBtnActive: {
+      backgroundColor: colors.surfaceElevated
+    },
+    periodText: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    periodTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    gridRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 10
+    },
+    statCard: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 14
+    },
+    statLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.7,
+      marginBottom: 5
+    },
+    statVal: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.textPrimary
+    },
+    statSub: {
+      fontSize: 11,
+      color: colors.textMuted,
+      marginTop: 2
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 14
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10
+    },
+    cardTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.8
+    },
+    cardLink: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary
+    },
+    dayFocusStrip: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      marginBottom: 14
+    },
+    dayFocusTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    dayFocusNums: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      fontWeight: '500'
+    },
+    chartArea: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      height: 120,
+      gap: 8
+    },
+    barCol: {
+      flex: 1,
+      alignItems: 'center',
+      height: '100%'
+    },
+    barTrack: {
+      flex: 1,
+      width: '100%',
+      maxWidth: 26,
+      justifyContent: 'flex-end',
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 6,
+      overflow: 'hidden',
+      marginBottom: 6
+    },
+    barFill: {
+      width: '100%',
+      backgroundColor: colors.textMuted,
+      borderTopLeftRadius: 4,
+      borderTopRightRadius: 4
+    },
+    barSelected: {
+      backgroundColor: colors.textPrimary
+    },
+    barEmpty: {
+      backgroundColor: colors.border
+    },
+    barDayLabel: {
+      fontSize: 10,
+      color: colors.textMuted,
+      fontWeight: '600'
+    },
+    barDayLabelActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    emptySmall: {
+      fontSize: 12.5,
+      color: colors.textMuted,
+      marginTop: 10
+    },
+    catRowTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6
+    },
+    catName: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary
+    },
+    catCount: {
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '500'
+    },
+    catAmount: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary
+    },
+    catBarTrack: {
+      height: 5,
+      backgroundColor: colors.surfaceSubtle,
+      borderRadius: 3,
+      overflow: 'hidden'
+    },
+    catBarFill: {
+      height: '100%',
+      backgroundColor: colors.textPrimary,
+      borderRadius: 3
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 10,
+      gap: 10
+    },
+    topRowBorder: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    },
+    topRank: {
+      width: 20,
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted
+    },
+    topTitle: {
+      fontSize: 13.5,
+      fontWeight: '600',
+      color: colors.textPrimary
+    },
+    topMeta: {
+      fontSize: 11,
+      color: colors.textMuted
+    },
+    topAmt: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    vaultStatsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 10
+    },
+    vaultChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6
+    },
+    vaultChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary
+    },
+    taskSummary: {
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    }
+  });

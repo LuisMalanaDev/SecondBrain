@@ -1,8 +1,8 @@
 // ============================================================================
-// src/components/SettingsModal.js — Modern Settings, Security & File Backups
+// src/components/SettingsModal.js — Settings, Appearance, Security & File Backups
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -18,7 +18,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { isValidBackup, hapticTap, hapticNotify } from '../utils/helpers';
 import {
   exportVaultBackupFile,
@@ -39,9 +39,17 @@ export default function SettingsModal({
   onClearAllItems,
   onShowToast
 }) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [showPasteImport, setShowPasteImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
+
+  function handleSetTheme(mode) {
+    hapticTap('light');
+    onUpdateSettings({ ...settings, themeMode: mode });
+  }
 
   async function handleToggleBiometric(val) {
     hapticTap('light');
@@ -136,7 +144,9 @@ export default function SettingsModal({
       const restoredExpenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
       Alert.alert(
         'Confirm Restore',
-        `Found ${cleanItems.length} vault items${restoredExpenses.length ? ` and ${restoredExpenses.length} expense records` : ''}. Replace current data?`,
+        `Found ${cleanItems.length} vault items${
+          restoredExpenses.length ? ` and ${restoredExpenses.length} expense records` : ''
+        }. Replace current data?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -177,7 +187,7 @@ export default function SettingsModal({
     hapticTap('heavy');
     Alert.alert(
       'Wipe Vault Data',
-      'Permanently delete ALL notes, voice memos, photos, passwords, checklists, and links?',
+      'Permanently delete ALL notes, voice memos, photos, passwords, checklists, links, and expenses?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -197,11 +207,10 @@ export default function SettingsModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>
-              <Feather name="x" size={16} color={COLORS.textSecondary} />
+              <Feather name="x" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -210,6 +219,62 @@ export default function SettingsModal({
             contentContainerStyle={styles.bodyContent}
             showsVerticalScrollIndicator={false}
           >
+            {/* APPEARANCE */}
+            <View style={styles.section}>
+              <Text style={styles.sectionHeader}>APPEARANCE</Text>
+
+              <View style={styles.rowCard}>
+                <View style={styles.rowCardLeft}>
+                  <Text style={styles.rowCardTitle}>Theme</Text>
+                  <Text style={styles.rowCardSub}>
+                    {isDark ? 'OLED Dark (Default)' : 'Clean Monochrome Light'}
+                  </Text>
+                </View>
+
+                <View style={styles.themeToggle}>
+                  <TouchableOpacity
+                    style={[styles.themeBtn, isDark && styles.themeBtnActive]}
+                    onPress={() => handleSetTheme('dark')}
+                    activeOpacity={0.75}
+                  >
+                    <Feather
+                      name="moon"
+                      size={12}
+                      color={isDark ? colors.solidBtnText : colors.textMuted}
+                    />
+                    <Text
+                      style={[
+                        styles.themeBtnText,
+                        isDark && styles.themeBtnTextActive
+                      ]}
+                    >
+                      Dark
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.themeBtn, !isDark && styles.themeBtnActive]}
+                    onPress={() => handleSetTheme('light')}
+                    activeOpacity={0.75}
+                  >
+                    <Feather
+                      name="sun"
+                      size={12}
+                      color={!isDark ? colors.solidBtnText : colors.textMuted}
+                    />
+                    <Text
+                      style={[
+                        styles.themeBtnText,
+                        !isDark && styles.themeBtnTextActive
+                      ]}
+                    >
+                      Light
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
             {/* SECURITY */}
             <View style={styles.section}>
               <Text style={styles.sectionHeader}>SECURITY</Text>
@@ -230,7 +295,7 @@ export default function SettingsModal({
                       style={[styles.smallBtn, { marginLeft: 8 }]}
                       onPress={onRequestRemovePin}
                     >
-                      <Text style={[styles.smallBtnText, { color: COLORS.danger }]}>Remove</Text>
+                      <Text style={[styles.smallBtnText, { color: colors.danger }]}>Remove</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -248,8 +313,13 @@ export default function SettingsModal({
                 <Switch
                   value={Boolean(settings.lockOnAppOpen)}
                   onValueChange={(v) => handleTogglePinSetting('lockOnAppOpen', v)}
-                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
-                  thumbColor={settings.lockOnAppOpen ? '#000000' : '#8E8E93'}
+                  trackColor={{
+                    false: colors.switchTrackFalse,
+                    true: colors.switchTrackTrue
+                  }}
+                  thumbColor={
+                    settings.lockOnAppOpen ? colors.switchThumbTrue : colors.switchThumbFalse
+                  }
                 />
               </View>
 
@@ -261,8 +331,15 @@ export default function SettingsModal({
                 <Switch
                   value={Boolean(settings.autoLockOnBackground)}
                   onValueChange={(v) => handleTogglePinSetting('autoLockOnBackground', v)}
-                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
-                  thumbColor={settings.autoLockOnBackground ? '#000000' : '#8E8E93'}
+                  trackColor={{
+                    false: colors.switchTrackFalse,
+                    true: colors.switchTrackTrue
+                  }}
+                  thumbColor={
+                    settings.autoLockOnBackground
+                      ? colors.switchThumbTrue
+                      : colors.switchThumbFalse
+                  }
                 />
               </View>
 
@@ -274,8 +351,13 @@ export default function SettingsModal({
                 <Switch
                   value={Boolean(settings.biometricEnabled)}
                   onValueChange={handleToggleBiometric}
-                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
-                  thumbColor={settings.biometricEnabled ? '#000000' : '#8E8E93'}
+                  trackColor={{
+                    false: colors.switchTrackFalse,
+                    true: colors.switchTrackTrue
+                  }}
+                  thumbColor={
+                    settings.biometricEnabled ? colors.switchThumbTrue : colors.switchThumbFalse
+                  }
                 />
               </View>
 
@@ -290,8 +372,15 @@ export default function SettingsModal({
                     hapticTap('light');
                     onUpdateSettings({ ...settings, autoClearClipboard: v });
                   }}
-                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
-                  thumbColor={settings.autoClearClipboard ? '#000000' : '#8E8E93'}
+                  trackColor={{
+                    false: colors.switchTrackFalse,
+                    true: colors.switchTrackTrue
+                  }}
+                  thumbColor={
+                    settings.autoClearClipboard
+                      ? colors.switchThumbTrue
+                      : colors.switchThumbFalse
+                  }
                 />
               </View>
             </View>
@@ -301,21 +390,23 @@ export default function SettingsModal({
               <Text style={styles.sectionHeader}>LOCAL BACKUP & PORTABILITY</Text>
 
               <TouchableOpacity style={styles.actionRow} onPress={handleExportFile} activeOpacity={0.7}>
-                <Feather name="upload" size={16} color={COLORS.textPrimary} style={styles.actionIcon} />
+                <Feather name="upload" size={16} color={colors.textPrimary} style={styles.actionIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>Export Backup File (.json)</Text>
-                  <Text style={styles.actionSub}>Save or share {items.length} items to Files / Drive</Text>
+                  <Text style={styles.actionSub}>
+                    Save or share {items.length} items & {expenses.length} expenses
+                  </Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
+                <Feather name="chevron-right" size={16} color={colors.textMuted} />
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.actionRow} onPress={handleImportFile} activeOpacity={0.7}>
-                <Feather name="download" size={16} color={COLORS.textPrimary} style={styles.actionIcon} />
+                <Feather name="download" size={16} color={colors.textPrimary} style={styles.actionIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>Import Backup File (.json)</Text>
                   <Text style={styles.actionSub}>Pick a .json backup file from your phone</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
+                <Feather name="chevron-right" size={16} color={colors.textMuted} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -323,12 +414,12 @@ export default function SettingsModal({
                 onPress={handleCopyJsonClipboard}
                 activeOpacity={0.7}
               >
-                <Feather name="clipboard" size={16} color={COLORS.textSecondary} style={styles.actionIcon} />
+                <Feather name="clipboard" size={16} color={colors.textSecondary} style={styles.actionIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>Copy JSON to Clipboard</Text>
                   <Text style={styles.actionSub}>Quick text copy of vault items</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
+                <Feather name="chevron-right" size={16} color={colors.textMuted} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -339,7 +430,7 @@ export default function SettingsModal({
                 }}
                 activeOpacity={0.7}
               >
-                <Feather name="file-text" size={16} color={COLORS.textSecondary} style={styles.actionIcon} />
+                <Feather name="file-text" size={16} color={colors.textSecondary} style={styles.actionIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>Restore from Pasted JSON</Text>
                   <Text style={styles.actionSub}>Paste JSON text backup directly</Text>
@@ -347,7 +438,7 @@ export default function SettingsModal({
                 <Feather
                   name={showPasteImport ? 'chevron-down' : 'chevron-right'}
                   size={16}
-                  color={COLORS.textMuted}
+                  color={colors.textMuted}
                 />
               </TouchableOpacity>
 
@@ -364,7 +455,7 @@ export default function SettingsModal({
                     multiline
                     numberOfLines={4}
                     placeholder='{"app":"SecondBrainVault","items":[...]}'
-                    placeholderTextColor={COLORS.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     value={importText}
                     onChangeText={(t) => {
                       setImportText(t);
@@ -384,12 +475,12 @@ export default function SettingsModal({
 
             {/* DANGER ZONE */}
             <View style={styles.section}>
-              <Text style={[styles.sectionHeader, { color: COLORS.danger }]}>DANGER ZONE</Text>
+              <Text style={[styles.sectionHeader, { color: colors.danger }]}>DANGER ZONE</Text>
               <TouchableOpacity style={styles.dangerRow} onPress={confirmClearAll} activeOpacity={0.7}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dangerTitle}>Clear All Data</Text>
                   <Text style={styles.dangerSub}>
-                    Delete all {items.length} items & stored local media
+                    Delete all {items.length} items, expenses & stored media
                   </Text>
                 </View>
                 <View style={styles.dangerBtn}>
@@ -412,298 +503,275 @@ export default function SettingsModal({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-end'
-  },
-  sheet: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    maxHeight: '90%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  body: {
-    paddingHorizontal: 20
-  },
-  bodyContent: {
-    paddingTop: 16,
-    paddingBottom: 24
-  },
-  section: {
-    marginBottom: 24
-  },
-  sectionHeader: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.8,
-    marginBottom: 10
-  },
-  rowCard: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8
-  },
-  rowCardLeft: {
-    flex: 1,
-    marginRight: 12
-  },
-  rowCardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: 2
-  },
-  rowCardSub: {
-    fontSize: 12,
-    color: COLORS.textMuted
-  },
-  btnRow: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  smallBtn: {
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5
-  },
-  smallBtnText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  primarySmallBtn: {
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6
-  },
-  primarySmallBtnText: {
-    color: '#000000',
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    marginBottom: 8
-  },
-  actionIcon: {
-    marginRight: 12
-  },
-  actionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: 2
-  },
-  actionSub: {
-    fontSize: 12,
-    color: COLORS.textMuted
-  },
-  importBox: {
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 12,
-    marginBottom: 8
-  },
-  importHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8
-  },
-  importLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  pasteBtn: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  pasteBtnText: {
-    fontSize: 11,
-    color: COLORS.textPrimary,
-    fontWeight: '600'
-  },
-  importInput: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 10,
-    color: COLORS.textPrimary,
-    fontSize: 12,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    minHeight: 70,
-    textAlignVertical: 'top',
-    marginBottom: 8
-  },
-  errorText: {
-    color: COLORS.danger,
-    fontSize: 12,
-    marginBottom: 8
-  },
-  restoreBtn: {
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 8,
-    paddingVertical: 9,
-    alignItems: 'center'
-  },
-  restoreBtnText: {
-    color: '#000000',
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10
-  },
-  tagPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  tagText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginRight: 6
-  },
-  tagDeleteBtn: {
-    paddingHorizontal: 2
-  },
-  newTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  newTagInput: {
-    flex: 1,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    marginRight: 8
-  },
-  addTagBtn: {
-    backgroundColor: COLORS.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8
-  },
-  addTagBtnText: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  dangerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 14
-  },
-  dangerTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.danger,
-    marginBottom: 2
-  },
-  dangerSub: {
-    fontSize: 12,
-    color: COLORS.textMuted
-  },
-  dangerBtn: {
-    backgroundColor: 'rgba(229, 72, 77, 0.15)',
-    borderWidth: 1,
-    borderColor: COLORS.danger,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  dangerBtnText: {
-    color: COLORS.danger,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  aboutBox: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border
-  },
-  aboutSub: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-    marginBottom: 4
-  },
-  aboutMuted: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    textAlign: 'center'
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      justifyContent: 'flex-end'
+    },
+    sheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      maxHeight: '90%',
+      paddingBottom: Platform.OS === 'ios' ? 34 : 20
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border
+    },
+    headerTitle: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    body: {
+      paddingHorizontal: 20
+    },
+    bodyContent: {
+      paddingTop: 16,
+      paddingBottom: 24
+    },
+    section: {
+      marginBottom: 24
+    },
+    sectionHeader: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.8,
+      marginBottom: 10
+    },
+    rowCard: {
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8
+    },
+    rowCardLeft: {
+      flex: 1,
+      marginRight: 12
+    },
+    rowCardTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 2
+    },
+    rowCardSub: {
+      fontSize: 12,
+      color: colors.textMuted
+    },
+    themeToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 2,
+      gap: 2
+    },
+    themeBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 6
+    },
+    themeBtnActive: {
+      backgroundColor: colors.solidBtnBg
+    },
+    themeBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    themeBtnTextActive: {
+      color: colors.solidBtnText,
+      fontWeight: '700'
+    },
+    btnRow: {
+      flexDirection: 'row',
+      alignItems: 'center'
+    },
+    smallBtn: {
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      borderRadius: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 5
+    },
+    smallBtnText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600'
+    },
+    primarySmallBtn: {
+      backgroundColor: colors.solidBtnBg,
+      borderRadius: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6
+    },
+    primarySmallBtnText: {
+      color: colors.solidBtnText,
+      fontSize: 12,
+      fontWeight: '700'
+    },
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      marginBottom: 8
+    },
+    actionIcon: {
+      marginRight: 12
+    },
+    actionTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 2
+    },
+    actionSub: {
+      fontSize: 12,
+      color: colors.textMuted
+    },
+    importBox: {
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      marginBottom: 8
+    },
+    importHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8
+    },
+    importLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    pasteBtn: {
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderRadius: 4,
+      backgroundColor: colors.surfaceSubtle
+    },
+    pasteBtnText: {
+      fontSize: 11,
+      color: colors.textPrimary,
+      fontWeight: '600'
+    },
+    importInput: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      padding: 10,
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      minHeight: 70,
+      textAlignVertical: 'top',
+      marginBottom: 8
+    },
+    errorText: {
+      color: colors.danger,
+      fontSize: 12,
+      marginBottom: 8
+    },
+    restoreBtn: {
+      backgroundColor: colors.solidBtnBg,
+      borderRadius: 8,
+      paddingVertical: 9,
+      alignItems: 'center'
+    },
+    restoreBtnText: {
+      color: colors.solidBtnText,
+      fontSize: 12,
+      fontWeight: '700'
+    },
+    dangerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 14
+    },
+    dangerTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.danger,
+      marginBottom: 2
+    },
+    dangerSub: {
+      fontSize: 12,
+      color: colors.textMuted
+    },
+    dangerBtn: {
+      backgroundColor: 'rgba(229, 72, 77, 0.12)',
+      borderWidth: 1,
+      borderColor: colors.danger,
+      borderRadius: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6
+    },
+    dangerBtnText: {
+      color: colors.danger,
+      fontSize: 12,
+      fontWeight: '700'
+    },
+    aboutBox: {
+      alignItems: 'center',
+      paddingVertical: 16,
+      marginTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    },
+    aboutSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      marginBottom: 4
+    },
+    aboutMuted: {
+      fontSize: 11,
+      color: colors.textMuted,
+      textAlign: 'center'
+    }
+  });

@@ -12,7 +12,7 @@ import {
   Pressable
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { toLocalDateKey, hapticTap } from '../utils/helpers';
 
 const MONTHS = [
@@ -29,6 +29,9 @@ export default function DatePickerModal({
   onSelect,
   onClose
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const todayKey = toLocalDateKey(new Date());
   const initialKey = selectedDateKey || todayKey;
 
@@ -79,28 +82,25 @@ export default function DatePickerModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.card} onPress={() => {}}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <Feather name="x" size={16} color={COLORS.textMuted} />
+              <Feather name="x" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          {/* Month Switcher */}
           <View style={styles.monthRow}>
             <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.navBtn} hitSlop={8}>
-              <Feather name="chevron-left" size={18} color={COLORS.textPrimary} />
+              <Feather name="chevron-left" size={18} color={colors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.monthTitle}>
               {MONTHS[viewMonth]} {viewYear}
             </Text>
             <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.navBtn} hitSlop={8}>
-              <Feather name="chevron-right" size={18} color={COLORS.textPrimary} />
+              <Feather name="chevron-right" size={18} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
-          {/* Weekday Labels */}
           <View style={styles.weekRow}>
             {WEEKDAYS.map((w) => (
               <Text key={w} style={styles.weekLabel}>
@@ -109,7 +109,6 @@ export default function DatePickerModal({
             ))}
           </View>
 
-          {/* Calendar Grid */}
           <View style={styles.grid}>
             {cells.map((cell, idx) => {
               if (!cell) {
@@ -132,19 +131,14 @@ export default function DatePickerModal({
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text
-                    style={[
-                      styles.cellText,
-                      isSelected && styles.cellTextSelected
-                    ]}
-                  >
+                  <Text style={[styles.cellText, isSelected && styles.cellTextSelected]}>
                     {cell.day}
                   </Text>
                   {isMarked && (
                     <View
                       style={[
                         styles.dot,
-                        isSelected && { backgroundColor: '#000000' }
+                        isSelected && { backgroundColor: colors.solidBtnText }
                       ]}
                     />
                   )}
@@ -153,7 +147,6 @@ export default function DatePickerModal({
             })}
           </View>
 
-          {/* Quick Footer */}
           <View style={styles.footer}>
             <TouchableOpacity
               style={styles.todayBtn}
@@ -171,115 +164,116 @@ export default function DatePickerModal({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.82)',
-    justifyContent: 'center',
-    paddingHorizontal: 20
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    padding: 16
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  monthRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  navBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  monthTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  weekRow: {
-    flexDirection: 'row',
-    marginBottom: 6
-  },
-  weekLabel: {
-    width: '14.285%',
-    textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap'
-  },
-  cell: {
-    width: '14.285%',
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10
-  },
-  cellToday: {
-    borderWidth: 1,
-    borderColor: COLORS.borderHover
-  },
-  cellSelected: {
-    backgroundColor: COLORS.textPrimary
-  },
-  cellText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textPrimary
-  },
-  cellTextSelected: {
-    color: '#000000',
-    fontWeight: '800'
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.textSecondary,
-    marginTop: 2
-  },
-  footer: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    alignItems: 'center'
-  },
-  todayBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border
-  },
-  todayBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textPrimary
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      justifyContent: 'center',
+      paddingHorizontal: 20
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      padding: 16
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14
+    },
+    title: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    monthRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12
+    },
+    navBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    monthTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    weekRow: {
+      flexDirection: 'row',
+      marginBottom: 6
+    },
+    weekLabel: {
+      width: '14.285%',
+      textAlign: 'center',
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted
+    },
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap'
+    },
+    cell: {
+      width: '14.285%',
+      aspectRatio: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 10
+    },
+    cellToday: {
+      borderWidth: 1,
+      borderColor: colors.borderHover
+    },
+    cellSelected: {
+      backgroundColor: colors.solidBtnBg
+    },
+    cellText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary
+    },
+    cellTextSelected: {
+      color: colors.solidBtnText,
+      fontWeight: '800'
+    },
+    dot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.textSecondary,
+      marginTop: 2
+    },
+    footer: {
+      marginTop: 12,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      alignItems: 'center'
+    },
+    todayBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    todayBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textPrimary
+    }
+  });

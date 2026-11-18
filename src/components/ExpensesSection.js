@@ -17,7 +17,7 @@ import {
   Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import {
   makeId,
   toLocalDateKey,
@@ -57,13 +57,14 @@ export default function ExpensesSection({
   externalModalTrigger,
   onExternalTriggerHandled
 }) {
-  // Filters
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [dateFilter, setDateFilter] = useState('ALL');
   const [customFilterDate, setCustomFilterDate] = useState(toLocalDateKey(new Date()));
   const [filterCalendarOpen, setFilterCalendarOpen] = useState(false);
   const [kindFilter, setKindFilter] = useState('ALL');
 
-  // Entry Modal
   const [modalVisible, setModalVisible] = useState(false);
   const [kind, setKind] = useState('EXPENSE');
   const [amountText, setAmountText] = useState('');
@@ -83,7 +84,7 @@ export default function ExpensesSection({
   const filteredExpenses = useMemo(() => {
     const todayKey = toLocalDateKey(new Date());
     const weekStartKey = addDaysToDateKey(todayKey, -6);
-    const monthPrefix = todayKey.slice(0, 7); // YYYY-MM
+    const monthPrefix = todayKey.slice(0, 7);
 
     return [...expenses]
       .filter((item) => {
@@ -210,13 +211,12 @@ export default function ExpensesSection({
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <>
-            {/* Hero Balance Card */}
             <View style={styles.balanceCard}>
               <Text style={styles.balanceLabel}>CURRENT CASH / SAVINGS</Text>
               <Text
                 style={[
                   styles.balanceAmount,
-                  overallStats.balance < 0 && { color: COLORS.danger }
+                  overallStats.balance < 0 && { color: colors.danger }
                 ]}
               >
                 {formatPeso(overallStats.balance)}
@@ -224,9 +224,7 @@ export default function ExpensesSection({
 
               {overallStats.totalCashIn > 0 && (
                 <View style={styles.progressTrack}>
-                  <View
-                    style={[styles.progressFill, { width: `${remainingRatio}%` }]}
-                  />
+                  <View style={[styles.progressFill, { width: `${remainingRatio}%` }]} />
                 </View>
               )}
 
@@ -248,14 +246,13 @@ export default function ExpensesSection({
                 </View>
               </View>
 
-              {/* Primary Action Buttons */}
               <View style={styles.actionRow}>
                 <TouchableOpacity
                   style={styles.cashBtn}
                   onPress={() => openModal('CASH_IN')}
                   activeOpacity={0.75}
                 >
-                  <Feather name="plus" size={15} color={COLORS.textPrimary} />
+                  <Feather name="plus" size={15} color={colors.textPrimary} />
                   <Text style={styles.cashBtnText}>Add Cash</Text>
                 </TouchableOpacity>
 
@@ -264,16 +261,14 @@ export default function ExpensesSection({
                   onPress={() => openModal('EXPENSE')}
                   activeOpacity={0.85}
                 >
-                  <Feather name="minus" size={15} color="#000000" />
+                  <Feather name="minus" size={15} color={colors.solidBtnText} />
                   <Text style={styles.expenseBtnText}>Add Expense</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Filter Bar (Type + Date) */}
             {expenses.length > 0 && (
               <View style={styles.filtersWrap}>
-                {/* Type Pills */}
                 <View style={styles.kindRow}>
                   {KIND_FILTERS.map((kf) => {
                     const active = kindFilter === kf.id;
@@ -299,7 +294,6 @@ export default function ExpensesSection({
                   })}
                 </View>
 
-                {/* Date Pills */}
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -314,10 +308,7 @@ export default function ExpensesSection({
                     return (
                       <TouchableOpacity
                         key={df.id}
-                        style={[
-                          styles.datePill,
-                          active && styles.datePillActive
-                        ]}
+                        style={[styles.datePill, active && styles.datePillActive]}
                         onPress={() => {
                           hapticTap('light');
                           if (df.id === 'CUSTOM') {
@@ -331,7 +322,7 @@ export default function ExpensesSection({
                           <Feather
                             name="calendar"
                             size={11}
-                            color={active ? '#000000' : COLORS.textMuted}
+                            color={active ? colors.solidBtnText : colors.textMuted}
                           />
                         )}
                         <Text
@@ -347,7 +338,6 @@ export default function ExpensesSection({
                   })}
                 </ScrollView>
 
-                {/* Filtered Subtotal Strip */}
                 {hasActiveFilter && (
                   <View style={styles.filteredStrip}>
                     <Text style={styles.filteredStripText}>
@@ -390,7 +380,7 @@ export default function ExpensesSection({
                 <Feather
                   name={isCashIn ? 'arrow-down-left' : 'arrow-up-right'}
                   size={15}
-                  color={isCashIn ? COLORS.success : COLORS.textSecondary}
+                  color={isCashIn ? colors.success : colors.textSecondary}
                 />
               </View>
 
@@ -404,7 +394,7 @@ export default function ExpensesSection({
                 </Text>
               </View>
 
-              <Text style={[styles.txAmount, isCashIn && { color: COLORS.success }]}>
+              <Text style={[styles.txAmount, isCashIn && { color: colors.success }]}>
                 {isCashIn ? '+' : '-'}
                 {formatPeso(item.amount)}
               </Text>
@@ -414,7 +404,7 @@ export default function ExpensesSection({
                 style={styles.txDeleteBtn}
                 hitSlop={8}
               >
-                <Feather name="trash-2" size={13} color={COLORS.textMuted} />
+                <Feather name="trash-2" size={13} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
           );
@@ -424,7 +414,7 @@ export default function ExpensesSection({
             <Feather
               name={hasActiveFilter ? 'calendar' : 'credit-card'}
               size={24}
-              color={COLORS.textMuted}
+              color={colors.textMuted}
             />
             <Text style={styles.emptyTitle}>
               {hasActiveFilter ? 'No matching records' : 'No cash or expenses yet'}
@@ -438,7 +428,6 @@ export default function ExpensesSection({
         }
       />
 
-      {/* Filter Date Calendar Picker */}
       <DatePickerModal
         visible={filterCalendarOpen}
         selectedDateKey={customFilterDate}
@@ -452,7 +441,6 @@ export default function ExpensesSection({
         onClose={() => setFilterCalendarOpen(false)}
       />
 
-      {/* Add Cash / Expense Modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -473,12 +461,11 @@ export default function ExpensesSection({
                 style={styles.modalCloseBtn}
                 hitSlop={10}
               >
-                <Feather name="x" size={16} color={COLORS.textSecondary} />
+                <Feather name="x" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              {/* Toggle Cash In vs Expense */}
               <View style={styles.segment}>
                 <TouchableOpacity
                   style={[styles.segBtn, kind === 'CASH_IN' && styles.segBtnActive]}
@@ -506,14 +493,13 @@ export default function ExpensesSection({
                 </TouchableOpacity>
               </View>
 
-              {/* Amount */}
               <Text style={styles.inputLabel}>AMOUNT (PESOS)</Text>
               <View style={styles.amountInputWrap}>
                 <Text style={styles.pesoPrefix}>₱</Text>
                 <TextInput
                   style={styles.amountInput}
                   placeholder="0"
-                  placeholderTextColor={COLORS.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   keyboardType="decimal-pad"
                   value={amountText}
                   onChangeText={handleAmountChange}
@@ -521,7 +507,6 @@ export default function ExpensesSection({
                 />
               </View>
 
-              {/* Cash Presets */}
               {kind === 'CASH_IN' && (
                 <ScrollView
                   horizontal
@@ -544,7 +529,6 @@ export default function ExpensesSection({
                 </ScrollView>
               )}
 
-              {/* Expense Category Pills */}
               {kind === 'EXPENSE' && (
                 <>
                   <Text style={styles.inputLabel}>CATEGORY</Text>
@@ -570,7 +554,6 @@ export default function ExpensesSection({
                 </>
               )}
 
-              {/* Date Selector */}
               <Text style={styles.inputLabel}>DATE</Text>
               <View style={styles.entryDateRow}>
                 <TouchableOpacity
@@ -631,8 +614,8 @@ export default function ExpensesSection({
                     size={12}
                     color={
                       entryDateKey !== todayKey && entryDateKey !== yestKey
-                        ? COLORS.textPrimary
-                        : COLORS.textSecondary
+                        ? colors.textPrimary
+                        : colors.textSecondary
                     }
                   />
                   <Text
@@ -649,7 +632,6 @@ export default function ExpensesSection({
                 </TouchableOpacity>
               </View>
 
-              {/* Description */}
               <Text style={styles.inputLabel}>
                 {kind === 'CASH_IN' ? 'SOURCE / NOTE (OPTIONAL)' : 'WHAT FOR? (E.G. PAMASAHE)'}
               </Text>
@@ -660,19 +642,18 @@ export default function ExpensesSection({
                     ? 'e.g. Current cash on hand, Allowance'
                     : 'e.g. Pamasahe, Lunch, Load'
                 }
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={titleText}
                 onChangeText={setTitleText}
               />
 
-              {/* Live Balance Preview */}
               {parsedInput > 0 && (
                 <View style={styles.previewBox}>
                   <Text style={styles.previewLabel}>Updated cash balance:</Text>
                   <Text
                     style={[
                       styles.previewVal,
-                      previewBalance < 0 && { color: COLORS.danger }
+                      previewBalance < 0 && { color: colors.danger }
                     ]}
                   >
                     {formatPeso(previewBalance)}
@@ -698,7 +679,6 @@ export default function ExpensesSection({
           </View>
         </KeyboardAvoidingView>
 
-        {/* Entry Date Calendar Picker */}
         <DatePickerModal
           visible={entryCalendarOpen}
           selectedDateKey={entryDateKey}
@@ -715,487 +695,488 @@ export default function ExpensesSection({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 100
-  },
-  balanceCard: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14
-  },
-  balanceLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.9,
-    marginBottom: 6
-  },
-  balanceAmount: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    letterSpacing: -0.8,
-    marginBottom: 12
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 14
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 2
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 10,
-    marginBottom: 14
-  },
-  metricBox: {
-    flex: 1,
-    alignItems: 'center'
-  },
-  metricDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: COLORS.border
-  },
-  metricLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.6,
-    marginBottom: 2
-  },
-  metricValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  cashBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.borderHover,
-    borderRadius: 10,
-    paddingVertical: 11
-  },
-  cashBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  expenseBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 10,
-    paddingVertical: 11
-  },
-  expenseBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#000000'
-  },
-  filtersWrap: {
-    marginBottom: 6
-  },
-  kindRow: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 3,
-    marginBottom: 10
-  },
-  kindPill: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: 7,
-    alignItems: 'center'
-  },
-  kindPillActive: {
-    backgroundColor: COLORS.surfaceElevated
-  },
-  kindPillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  kindPillTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  dateFilterScroll: {
-    gap: 7,
-    paddingBottom: 10
-  },
-  datePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border
-  },
-  datePillActive: {
-    backgroundColor: COLORS.textPrimary,
-    borderColor: COLORS.textPrimary
-  },
-  datePillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary
-  },
-  datePillTextActive: {
-    color: '#000000',
-    fontWeight: '700'
-  },
-  filteredStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 9,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 12
-  },
-  filteredStripText: {
-    fontSize: 11.5,
-    color: COLORS.textSecondary,
-    fontWeight: '600'
-  },
-  clearFilterText: {
-    fontSize: 11.5,
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10
-  },
-  sectionHeaderText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.8
-  },
-  resetText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  txRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 8,
-    gap: 10
-  },
-  txIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  txIconBoxCash: {
-    borderColor: 'rgba(48, 164, 108, 0.35)'
-  },
-  txTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: 2
-  },
-  txMeta: {
-    fontSize: 11,
-    color: COLORS.textMuted
-  },
-  txAmount: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  txDeleteBtn: {
-    padding: 4,
-    marginLeft: 2
-  },
-  emptyBox: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    gap: 8
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginTop: 4
-  },
-  emptySub: {
-    fontSize: 12.5,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 270
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-end'
-  },
-  modalSheet: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    maxHeight: '90%'
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  modalCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  segment: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 3,
-    marginBottom: 16
-  },
-  segBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 7
-  },
-  segBtnActive: {
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  segText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  segTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.8,
-    marginBottom: 6
-  },
-  amountInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 12
-  },
-  pesoPrefix: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    marginRight: 8
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.textPrimary
-  },
-  chipsScroll: {
-    marginBottom: 14
-  },
-  presetChip: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8
-  },
-  presetChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary
-  },
-  catGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 7,
-    marginBottom: 14
-  },
-  catChip: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 11,
-    paddingVertical: 6
-  },
-  catChipActive: {
-    borderColor: COLORS.textPrimary,
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  catChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  catChipTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  entryDateRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14
-  },
-  entryDateChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 9,
-    paddingHorizontal: 12,
-    paddingVertical: 9
-  },
-  entryDateChipActive: {
-    borderColor: COLORS.textPrimary,
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  entryDateChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted
-  },
-  entryDateChipTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
-  },
-  textInput: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    color: COLORS.textPrimary,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    marginBottom: 14
-  },
-  previewBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12
-  },
-  previewLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary
-  },
-  previewVal: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  errorText: {
-    color: COLORS.danger,
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 8
-  },
-  saveBtn: {
-    backgroundColor: COLORS.textPrimary,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center'
-  },
-  saveBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#000000'
-  }
-});
+const makeStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1
+    },
+    listContent: {
+      paddingHorizontal: 20,
+      paddingTop: 6,
+      paddingBottom: 100
+    },
+    balanceCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 18,
+      marginBottom: 14
+    },
+    balanceLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.9,
+      marginBottom: 6
+    },
+    balanceAmount: {
+      fontSize: 34,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      letterSpacing: -0.8,
+      marginBottom: 12
+    },
+    progressTrack: {
+      height: 4,
+      backgroundColor: colors.surfaceSubtle,
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginBottom: 14
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: colors.textPrimary,
+      borderRadius: 2
+    },
+    metricsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 10,
+      marginBottom: 14
+    },
+    metricBox: {
+      flex: 1,
+      alignItems: 'center'
+    },
+    metricDivider: {
+      width: 1,
+      height: 24,
+      backgroundColor: colors.border
+    },
+    metricLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.6,
+      marginBottom: 2
+    },
+    metricValue: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: 10
+    },
+    cashBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.borderHover,
+      borderRadius: 10,
+      paddingVertical: 11
+    },
+    cashBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    expenseBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.solidBtnBg,
+      borderRadius: 10,
+      paddingVertical: 11
+    },
+    expenseBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.solidBtnText
+    },
+    filtersWrap: {
+      marginBottom: 6
+    },
+    kindRow: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 10
+    },
+    kindPill: {
+      flex: 1,
+      paddingVertical: 7,
+      borderRadius: 7,
+      alignItems: 'center'
+    },
+    kindPillActive: {
+      backgroundColor: colors.surfaceElevated
+    },
+    kindPillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    kindPillTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    dateFilterScroll: {
+      gap: 7,
+      paddingBottom: 10
+    },
+    datePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 11,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    datePillActive: {
+      backgroundColor: colors.solidBtnBg,
+      borderColor: colors.solidBtnBg
+    },
+    datePillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary
+    },
+    datePillTextActive: {
+      color: colors.solidBtnText,
+      fontWeight: '700'
+    },
+    filteredStrip: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 9,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 12
+    },
+    filteredStripText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      fontWeight: '600'
+    },
+    clearFilterText: {
+      fontSize: 11.5,
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10
+    },
+    sectionHeaderText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.8
+    },
+    resetText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    txRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      marginBottom: 8,
+      gap: 10
+    },
+    txIconBox: {
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    txIconBoxCash: {
+      borderColor: 'rgba(48, 164, 108, 0.35)'
+    },
+    txTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 2
+    },
+    txMeta: {
+      fontSize: 11,
+      color: colors.textMuted
+    },
+    txAmount: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    txDeleteBtn: {
+      padding: 4,
+      marginLeft: 2
+    },
+    emptyBox: {
+      alignItems: 'center',
+      paddingVertical: 40,
+      paddingHorizontal: 20,
+      gap: 8
+    },
+    emptyTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginTop: 4
+    },
+    emptySub: {
+      fontSize: 12.5,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 18,
+      maxWidth: 270
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: colors.backdrop,
+      justifyContent: 'flex-end'
+    },
+    modalSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 18,
+      paddingTop: 16,
+      maxHeight: '90%'
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    modalCloseBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    segment: {
+      flexDirection: 'row',
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 16
+    },
+    segBtn: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: 'center',
+      borderRadius: 7
+    },
+    segBtnActive: {
+      backgroundColor: colors.surface
+    },
+    segText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    segTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    inputLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.8,
+      marginBottom: 6
+    },
+    amountInputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 12
+    },
+    pesoPrefix: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.textMuted,
+      marginRight: 8
+    },
+    amountInput: {
+      flex: 1,
+      fontSize: 28,
+      fontWeight: '800',
+      color: colors.textPrimary
+    },
+    chipsScroll: {
+      marginBottom: 14
+    },
+    presetChip: {
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      marginRight: 8
+    },
+    presetChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary
+    },
+    catGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 7,
+      marginBottom: 14
+    },
+    catChip: {
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 11,
+      paddingVertical: 6
+    },
+    catChipActive: {
+      borderColor: colors.textPrimary,
+      backgroundColor: colors.surfaceSubtle
+    },
+    catChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    catChipTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    entryDateRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 14
+    },
+    entryDateChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 9,
+      paddingHorizontal: 12,
+      paddingVertical: 9
+    },
+    entryDateChipActive: {
+      borderColor: colors.textPrimary,
+      backgroundColor: colors.surfaceSubtle
+    },
+    entryDateChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    entryDateChipTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    textInput: {
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      color: colors.textPrimary,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+      marginBottom: 14
+    },
+    previewBox: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 12
+    },
+    previewLabel: {
+      fontSize: 12,
+      color: colors.textSecondary
+    },
+    previewVal: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    errorText: {
+      color: colors.danger,
+      fontSize: 12,
+      fontWeight: '600',
+      marginBottom: 8
+    },
+    saveBtn: {
+      backgroundColor: colors.solidBtnBg,
+      borderRadius: 12,
+      paddingVertical: 13,
+      alignItems: 'center'
+    },
+    saveBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.solidBtnText
+    }
+  });
