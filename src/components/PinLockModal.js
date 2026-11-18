@@ -4,9 +4,11 @@
 // ============================================================================
 
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Vibration } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { COLORS } from '../theme/colors';
+import { hapticTap, hapticNotify } from '../utils/helpers';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'bio', '0', 'del'];
 
@@ -54,16 +56,20 @@ export default function PinLockModal({
         cancelLabel: 'Use PIN',
         disableDeviceFallback: true
       });
-      if (res.success) onSuccess && onSuccess();
+      if (res.success) {
+        hapticNotify('success');
+        onSuccess && onSuccess();
+      }
     } catch (e) {}
   }
 
   function handleComplete(pin) {
     if (mode === 'verify') {
       if (pin === String(correctPin)) {
+        hapticNotify('success');
         onSuccess && onSuccess();
       } else {
-        Vibration.vibrate(200);
+        hapticNotify('error');
         setError('Wrong PIN. Try again.');
         setEntry('');
       }
@@ -71,15 +77,17 @@ export default function PinLockModal({
     }
     // mode === 'set'
     if (!firstPin) {
+      hapticTap('medium');
       setFirstPin(pin);
       setEntry('');
       setError('');
       return;
     }
     if (pin === firstPin) {
+      hapticNotify('success');
       onSuccess && onSuccess(pin);
     } else {
-      Vibration.vibrate(200);
+      hapticNotify('error');
       setError("PINs didn't match. Start again.");
       setFirstPin(null);
       setEntry('');
@@ -87,6 +95,7 @@ export default function PinLockModal({
   }
 
   function pressKey(k) {
+    hapticTap('light');
     if (k === 'bio') {
       if (bioAvailable) tryBiometric();
       return;
@@ -99,7 +108,7 @@ export default function PinLockModal({
     const next = entry + k;
     setEntry(next);
     setError('');
-    if (next.length === 4) setTimeout(() => handleComplete(next), 120);
+    if (next.length === 4) setTimeout(() => handleComplete(next), 100);
   }
 
   const heading =
@@ -117,6 +126,9 @@ export default function PinLockModal({
     <Modal visible={visible} transparent={!fullScreen} animationType="fade" onRequestClose={onCancel}>
       <View style={[styles.backdrop, fullScreen && styles.backdropFull]}>
         <View style={styles.card}>
+          <View style={styles.lockIconBox}>
+            <Feather name="lock" size={20} color={COLORS.textPrimary} />
+          </View>
           <Text style={styles.title}>{heading}</Text>
           <Text style={styles.sub}>{sub}</Text>
 
@@ -140,7 +152,13 @@ export default function PinLockModal({
                   activeOpacity={0.6}
                   onPress={() => pressKey(k)}
                 >
-                  <Text style={styles.keyText}>{isBio ? '👆' : isDel ? '⌫' : k}</Text>
+                  {isBio ? (
+                    <Ionicons name="finger-print-outline" size={26} color={COLORS.textPrimary} />
+                  ) : isDel ? (
+                    <Feather name="delete" size={22} color={COLORS.textSecondary} />
+                  ) : (
+                    <Text style={styles.keyText}>{k}</Text>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -176,6 +194,17 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 22,
     alignItems: 'center'
+  },
+  lockIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12
   },
   title: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '700' },
   sub: { color: COLORS.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' },

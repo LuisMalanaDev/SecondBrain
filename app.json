@@ -22,11 +22,16 @@
       "permissions": [
         "VIBRATE",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "RECORD_AUDIO"
       ]
     },
     "plugins": [
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-audio",
+      "expo-sharing"
     ]
   }
 }

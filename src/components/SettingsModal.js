@@ -1,5 +1,5 @@
 // ============================================================================
-// src/components/SettingsModal.js — Modern Minimalist Settings & Portability
+// src/components/SettingsModal.js — Modern Settings, Security & File Backups
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -15,10 +15,15 @@ import {
   Alert,
   Platform
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { COLORS } from '../theme/colors';
-import { isValidBackup, normalizeTag } from '../utils/helpers';
+import { isValidBackup, normalizeTag, hapticTap, hapticNotify } from '../utils/helpers';
+import {
+  exportVaultBackupFile,
+  pickAndReadBackupFile
+} from '../storage/vaultStorage';
 
 export default function SettingsModal({
   visible,
@@ -36,12 +41,13 @@ export default function SettingsModal({
   onClearAllItems,
   onShowToast
 }) {
-  const [showImport, setShowImport] = useState(false);
+  const [showPasteImport, setShowPasteImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
   const [newTagInput, setNewTagInput] = useState('');
 
   async function handleToggleBiometric(val) {
+    hapticTap('light');
     if (val) {
       try {
         const hasHw = await LocalAuthentication.hasHardwareAsync();
@@ -49,7 +55,7 @@ export default function SettingsModal({
         if (!hasHw || !enrolled) {
           Alert.alert(
             'Biometrics Unavailable',
-            'No fingerprint or face authentication hardware/enrollment found on this device.'
+            'No fingerprint or face authentication enrollment found on this device.'
           );
           return;
         }
@@ -61,40 +67,100 @@ export default function SettingsModal({
     onUpdateSettings({ ...settings, biometricEnabled: val });
   }
 
-  function handleToggleLockOnOpen(val) {
+  function handleTogglePinSetting(key, val) {
+    hapticTap('light');
     if (val && !pinCode) {
-      Alert.alert('PIN Required', 'Please set a 4-digit master PIN first before enabling Lock on App Launch.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Set PIN', onPress: () => onRequestSetPin && onRequestSetPin() }
-      ]);
+      Alert.alert(
+        'PIN Required',
+        'Please set a 4-digit Master PIN first before enabling this lock setting.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Set PIN', onPress: () => onRequestSetPin && onRequestSetPin() }
+        ]
+      );
       return;
     }
-    onUpdateSettings({ ...settings, lockOnAppOpen: val });
+    onUpdateSettings({ ...settings, [key]: val });
   }
 
-  async function handleExportVault() {
+  async function handleExportFile() {
+    hapticTap('medium');
     try {
-      const backupData = {
-        app: 'SecondBrainVault',
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        itemCount: items.length,
-        items,
-        tags: allTags
-      };
-      const json = JSON.stringify(backupData, null, 2);
-      await Clipboard.setStringAsync(json);
-      onShowToast && onShowToast(`Copied ${items.length} items to clipboard`);
-      Alert.alert(
-        'Backup Exported',
-        `Successfully exported ${items.length} items to your clipboard.\n\nYou can now paste and save it safely in a private file.`
-      );
+      await exportVaultBackupFile(items, allTags);
+      onShowToast && onShowToast('Backup file ready');
     } catch (e) {
-      Alert.alert('Export Failed', 'Could not copy backup data to clipboard.');
+      Alert.alert('Export Error', e?.message || 'Could not share backup file.');
     }
   }
 
-  async function handlePasteFromClipboard() {
+  async function handleImportFile() {
+    hapticTap('medium');
+    try {
+      const text = await pickAndReadBackupFile();
+      if (!text) return;
+      validateAndConfirmRestore(text);
+    } catch (e) {
+      Alert.alert('Import Error', 'Could not read the selected file.');
+    }
+  }
+
+  async function handleCopyJsonClipboard() {
+    hapticTap('light');
+    try {
+      const payload = JSON.stringify(
+        {
+          app: 'SecondBrainVault',
+          version: 2,
+          exportedAt: new Date().toISOString(),
+          itemCount: items.length,
+          items,
+          tags: allTags
+        },
+        null,
+        2
+      );
+      await Clipboard.setStringAsync(payload);
+      onShowToast && onShowToast(`Copied ${items.length} items to clipboard`);
+    } catch (e) {
+      Alert.alert('Error', 'Could not copy backup text.');
+    }
+  }
+
+  function validateAndConfirmRestore(rawText) {
+    try {
+      const parsed = JSON.parse(rawText.trim());
+      if (!isValidBackup(parsed)) {
+        hapticNotify('error');
+        Alert.alert('Invalid Backup', 'This file does not contain a valid SecondBrain Vault backup.');
+        return;
+      }
+      const cleanItems = parsed.items.filter((i) => i.type !== 'SNIPPET');
+      Alert.alert(
+        'Confirm Restore',
+        `Found ${cleanItems.length} items in this backup. Replace your current vault items with this backup?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Restore',
+            style: 'destructive',
+            onPress: () => {
+              onRestoreBackup && onRestoreBackup(cleanItems, parsed.tags || allTags);
+              setShowPasteImport(false);
+              setImportText('');
+              setImportError('');
+              hapticNotify('success');
+              onShowToast && onShowToast(`Restored ${cleanItems.length} items`);
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      hapticNotify('error');
+      setImportError('Invalid JSON format. Check brackets and quotes.');
+    }
+  }
+
+  async function handlePasteClipboard() {
     try {
       const text = await Clipboard.getStringAsync();
       if (text) {
@@ -104,42 +170,7 @@ export default function SettingsModal({
         setImportError('Clipboard is empty');
       }
     } catch (e) {
-      setImportError('Could not read from clipboard');
-    }
-  }
-
-  function handleExecuteRestore() {
-    if (!importText.trim()) {
-      setImportError('Please paste your backup JSON first');
-      return;
-    }
-    try {
-      const parsed = JSON.parse(importText.trim());
-      if (!isValidBackup(parsed)) {
-        setImportError('Invalid backup structure. The JSON must contain a valid items array.');
-        return;
-      }
-
-      Alert.alert(
-        'Confirm Restore',
-        `Found ${parsed.items.length} items. This will restore and update your vault. Continue?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Restore Now',
-            style: 'destructive',
-            onPress: () => {
-              onRestoreBackup && onRestoreBackup(parsed.items, parsed.tags || allTags);
-              setShowImport(false);
-              setImportText('');
-              setImportError('');
-              onShowToast && onShowToast(`Restored ${parsed.items.length} items`);
-            }
-          }
-        ]
-      );
-    } catch (e) {
-      setImportError('Invalid JSON format. Check brackets and quotes.');
+      setImportError('Could not read clipboard');
     }
   }
 
@@ -150,15 +181,17 @@ export default function SettingsModal({
       Alert.alert('Tag Exists', `The tag "${t}" already exists.`);
       return;
     }
+    hapticTap('light');
     onAddTag && onAddTag(t);
     setNewTagInput('');
     onShowToast && onShowToast(`Added tag ${t}`);
   }
 
   function confirmClearAll() {
+    hapticTap('heavy');
     Alert.alert(
       'Wipe Vault Data',
-      'Are you sure you want to permanently delete ALL vault items? This action cannot be undone.',
+      'Permanently delete ALL notes, voice memos, photos, passwords, checklists, and links?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -166,6 +199,7 @@ export default function SettingsModal({
           style: 'destructive',
           onPress: () => {
             onClearAllItems && onClearAllItems();
+            hapticNotify('success');
             onShowToast && onShowToast('Vault cleared');
           }
         }
@@ -181,20 +215,24 @@ export default function SettingsModal({
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>
-              <Text style={styles.closeBtnText}>✕</Text>
+              <Feather name="x" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
-            {/* Section: Security */}
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* SECURITY */}
             <View style={styles.section}>
               <Text style={styles.sectionHeader}>SECURITY</Text>
 
               <View style={styles.rowCard}>
                 <View style={styles.rowCardLeft}>
-                  <Text style={styles.rowCardTitle}>Master PIN</Text>
+                  <Text style={styles.rowCardTitle}>Master PIN (SecureStore)</Text>
                   <Text style={styles.rowCardSub}>
-                    {pinCode ? 'Active (4-digit passcode set)' : 'Not configured'}
+                    {pinCode ? 'Active (hardware-backed 4-digit PIN)' : 'Not configured'}
                   </Text>
                 </View>
                 {pinCode ? (
@@ -219,11 +257,11 @@ export default function SettingsModal({
               <View style={styles.rowCard}>
                 <View style={styles.rowCardLeft}>
                   <Text style={styles.rowCardTitle}>Lock on App Launch</Text>
-                  <Text style={styles.rowCardSub}>Require authentication on opening app</Text>
+                  <Text style={styles.rowCardSub}>Require authentication when opening</Text>
                 </View>
                 <Switch
                   value={Boolean(settings.lockOnAppOpen)}
-                  onValueChange={handleToggleLockOnOpen}
+                  onValueChange={(v) => handleTogglePinSetting('lockOnAppOpen', v)}
                   trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
                   thumbColor={settings.lockOnAppOpen ? '#000000' : '#8E8E93'}
                 />
@@ -231,8 +269,21 @@ export default function SettingsModal({
 
               <View style={styles.rowCard}>
                 <View style={styles.rowCardLeft}>
-                  <Text style={styles.rowCardTitle}>Biometric Authentication</Text>
-                  <Text style={styles.rowCardSub}>Fingerprint or Face ID unlock</Text>
+                  <Text style={styles.rowCardTitle}>Auto-Lock on App Switch</Text>
+                  <Text style={styles.rowCardSub}>Hide & re-lock vault when leaving app</Text>
+                </View>
+                <Switch
+                  value={Boolean(settings.autoLockOnBackground)}
+                  onValueChange={(v) => handleTogglePinSetting('autoLockOnBackground', v)}
+                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
+                  thumbColor={settings.autoLockOnBackground ? '#000000' : '#8E8E93'}
+                />
+              </View>
+
+              <View style={styles.rowCard}>
+                <View style={styles.rowCardLeft}>
+                  <Text style={styles.rowCardTitle}>Biometric Unlock</Text>
+                  <Text style={styles.rowCardSub}>Fingerprint or Face ID authentication</Text>
                 </View>
                 <Switch
                   value={Boolean(settings.biometricEnabled)}
@@ -241,41 +292,84 @@ export default function SettingsModal({
                   thumbColor={settings.biometricEnabled ? '#000000' : '#8E8E93'}
                 />
               </View>
+
+              <View style={styles.rowCard}>
+                <View style={styles.rowCardLeft}>
+                  <Text style={styles.rowCardTitle}>Auto-Clear Clipboard (30s)</Text>
+                  <Text style={styles.rowCardSub}>Wipe copied passwords automatically</Text>
+                </View>
+                <Switch
+                  value={Boolean(settings.autoClearClipboard)}
+                  onValueChange={(v) => {
+                    hapticTap('light');
+                    onUpdateSettings({ ...settings, autoClearClipboard: v });
+                  }}
+                  trackColor={{ false: COLORS.border, true: COLORS.textPrimary }}
+                  thumbColor={settings.autoClearClipboard ? '#000000' : '#8E8E93'}
+                />
+              </View>
             </View>
 
-            {/* Section: Backup */}
+            {/* DATA & BACKUP */}
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>DATA & BACKUP</Text>
+              <Text style={styles.sectionHeader}>LOCAL BACKUP & PORTABILITY</Text>
 
-              <TouchableOpacity style={styles.actionRow} onPress={handleExportVault} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.actionRow} onPress={handleExportFile} activeOpacity={0.7}>
+                <Feather name="upload" size={16} color={COLORS.textPrimary} style={styles.actionIcon} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.actionTitle}>Export Backup (JSON)</Text>
-                  <Text style={styles.actionSub}>Copy all {items.length} vault items to clipboard</Text>
+                  <Text style={styles.actionTitle}>Export Backup File (.json)</Text>
+                  <Text style={styles.actionSub}>Save or share {items.length} items to Files / Drive</Text>
                 </View>
-                <Text style={styles.chevron}>›</Text>
+                <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionRow} onPress={handleImportFile} activeOpacity={0.7}>
+                <Feather name="download" size={16} color={COLORS.textPrimary} style={styles.actionIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionTitle}>Import Backup File (.json)</Text>
+                  <Text style={styles.actionSub}>Pick a .json backup file from your phone</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionRow}
+                onPress={handleCopyJsonClipboard}
+                activeOpacity={0.7}
+              >
+                <Feather name="clipboard" size={16} color={COLORS.textSecondary} style={styles.actionIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionTitle}>Copy JSON to Clipboard</Text>
+                  <Text style={styles.actionSub}>Quick text copy of vault items</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.actionRow}
                 onPress={() => {
-                  setShowImport(!showImport);
+                  setShowPasteImport(!showPasteImport);
                   setImportError('');
                 }}
                 activeOpacity={0.7}
               >
+                <Feather name="file-text" size={16} color={COLORS.textSecondary} style={styles.actionIcon} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.actionTitle}>Restore from JSON</Text>
-                  <Text style={styles.actionSub}>Import and restore notes, passwords & code</Text>
+                  <Text style={styles.actionTitle}>Restore from Pasted JSON</Text>
+                  <Text style={styles.actionSub}>Paste JSON text backup directly</Text>
                 </View>
-                <Text style={styles.chevron}>{showImport ? '⌄' : '›'}</Text>
+                <Feather
+                  name={showPasteImport ? 'chevron-down' : 'chevron-right'}
+                  size={16}
+                  color={COLORS.textMuted}
+                />
               </TouchableOpacity>
 
-              {/* Import Drawer */}
-              {showImport && (
+              {showPasteImport && (
                 <View style={styles.importBox}>
                   <View style={styles.importHeaderRow}>
                     <Text style={styles.importLabel}>Paste backup JSON</Text>
-                    <TouchableOpacity onPress={handlePasteFromClipboard} style={styles.pasteBtn}>
+                    <TouchableOpacity onPress={handlePasteClipboard} style={styles.pasteBtn}>
                       <Text style={styles.pasteBtnText}>Paste</Text>
                     </TouchableOpacity>
                   </View>
@@ -292,14 +386,17 @@ export default function SettingsModal({
                     }}
                   />
                   {importError ? <Text style={styles.errorText}>{importError}</Text> : null}
-                  <TouchableOpacity style={styles.restoreBtn} onPress={handleExecuteRestore}>
+                  <TouchableOpacity
+                    style={styles.restoreBtn}
+                    onPress={() => validateAndConfirmRestore(importText)}
+                  >
                     <Text style={styles.restoreBtnText}>Restore Vault</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
 
-            {/* Section: Tags */}
+            {/* TAGS */}
             <View style={styles.section}>
               <Text style={styles.sectionHeader}>TAGS</Text>
               <View style={styles.tagsContainer}>
@@ -311,7 +408,7 @@ export default function SettingsModal({
                       style={styles.tagDeleteBtn}
                       hitSlop={6}
                     >
-                      <Text style={styles.tagDeleteText}>×</Text>
+                      <Feather name="x" size={12} color={COLORS.textMuted} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -333,13 +430,15 @@ export default function SettingsModal({
               </View>
             </View>
 
-            {/* Section: Danger Zone */}
+            {/* DANGER ZONE */}
             <View style={styles.section}>
               <Text style={[styles.sectionHeader, { color: COLORS.danger }]}>DANGER ZONE</Text>
               <TouchableOpacity style={styles.dangerRow} onPress={confirmClearAll} activeOpacity={0.7}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dangerTitle}>Clear All Data</Text>
-                  <Text style={styles.dangerSub}>Permanently delete all {items.length} items</Text>
+                  <Text style={styles.dangerSub}>
+                    Delete all {items.length} items & stored local media
+                  </Text>
                 </View>
                 <View style={styles.dangerBtn}>
                   <Text style={styles.dangerBtnText}>Delete All</Text>
@@ -347,10 +446,12 @@ export default function SettingsModal({
               </TouchableOpacity>
             </View>
 
-            {/* Minimal About */}
+            {/* ABOUT */}
             <View style={styles.aboutBox}>
-              <Text style={styles.aboutSub}>SecondBrain Vault • 100% Offline</Text>
-              <Text style={styles.aboutMuted}>Stored locally in device memory.</Text>
+              <Text style={styles.aboutSub}>SecondBrain Vault • Standalone SQLite</Text>
+              <Text style={styles.aboutMuted}>
+                100% offline on-device database, SecureStore & private sandbox media.
+              </Text>
             </View>
           </ScrollView>
         </View>
@@ -396,11 +497,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  closeBtnText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    fontWeight: '600'
   },
   body: {
     paddingHorizontal: 20
@@ -482,6 +578,9 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8
   },
+  actionIcon: {
+    marginRight: 12
+  },
   actionTitle: {
     fontSize: 14,
     fontWeight: '600',
@@ -492,13 +591,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted
   },
-  chevron: {
-    fontSize: 18,
-    color: COLORS.textMuted,
-    marginLeft: 10
-  },
   importBox: {
-    backgroundColor: COLORS.codeBg,
+    backgroundColor: COLORS.background,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -580,11 +674,6 @@ const styles = StyleSheet.create({
   tagDeleteBtn: {
     paddingHorizontal: 2
   },
-  tagDeleteText: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    lineHeight: 14
-  },
   newTagRow: {
     flexDirection: 'row',
     alignItems: 'center'
@@ -658,10 +747,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     fontWeight: '600',
-    marginBottom: 2
+    marginBottom: 4
   },
   aboutMuted: {
     fontSize: 11,
-    color: COLORS.textMuted
+    color: COLORS.textMuted,
+    textAlign: 'center'
   }
 });

@@ -1,19 +1,30 @@
 // ============================================================================
 // src/components/VaultItemCard.js — Modern Minimalist Card Renderer
-// Apple Monochrome / Minimalist Design
+// Crisp Monochrome Icons, Voice Player, Private Photo Previews & Haptics
 // ============================================================================
 
 import React, { useState, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Linking, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  Platform,
+  Linking,
+  Alert
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
-import { formatDate } from '../utils/helpers';
+import { formatDate, extractDomain, hapticTap } from '../utils/helpers';
+import VoicePlayer from './VoicePlayer';
 
-const TYPE_LABELS = {
-  NOTE: 'Note',
-  SNIPPET: 'Code',
-  PASSWORD: 'Password',
-  CHECKLIST: 'Tasks',
-  LINK: 'Link'
+const TYPE_META = {
+  NOTE: { label: 'Note', icon: 'file-text' },
+  VOICE: { label: 'Voice', icon: 'mic' },
+  PASSWORD: { label: 'Password', icon: 'lock' },
+  CHECKLIST: { label: 'Tasks', icon: 'check-square' },
+  LINK: { label: 'Link', icon: 'bookmark' }
 };
 
 function VaultItemCard({
@@ -21,6 +32,7 @@ function VaultItemCard({
   hasPin,
   sessionUnlocked,
   onRequestUnlock,
+  onOpenDetail,
   onToggleTask,
   onTogglePin,
   onEdit,
@@ -29,50 +41,71 @@ function VaultItemCard({
 }) {
   const [revealPw, setRevealPw] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
   const gated = item.isLocked && hasPin && !sessionUnlocked;
+  const meta = TYPE_META[item.type] || TYPE_META.NOTE;
 
   const withUnlock = (fn) => () => (gated ? onRequestUnlock(fn) : fn());
 
   const confirmDelete = () =>
-    Alert.alert('Delete item', `Are you sure you want to remove "${item.title}"?`, [
+    Alert.alert('Delete item', `Remove "${item.title}" from your vault?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => onDelete(item.id) }
     ]);
 
   const checklist = item.checklist || [];
+  const attachments = item.attachments || [];
   const doneCount = checklist.filter((c) => c.done).length;
   const pct = checklist.length ? Math.round((doneCount / checklist.length) * 100) : 0;
 
-  const longText = (item.content || '').length > 200;
-  const bodyText = expanded || !longText ? item.content : `${item.content.slice(0, 200)}…`;
-
-  const badgeText =
-    item.type === 'SNIPPET' && item.language
-      ? `CODE • ${item.language.toUpperCase()}`
-      : TYPE_LABELS[item.type] || 'Note';
+  const longText = (item.content || '').length > 180;
+  const bodyText = expanded || !longText ? item.content : `${item.content.slice(0, 180)}…`;
 
   return (
-    <View style={styles.card}>
-      {/* Top Header */}
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.88}
+      onPress={withUnlock(() => {
+        hapticTap('light');
+        onOpenDetail && onOpenDetail(item);
+      })}
+    >
+      {/* Header */}
       <View style={styles.headerRow}>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>{badgeText}</Text>
+          <Feather name={meta.icon} size={11} color={COLORS.badgeText} />
+          <Text style={styles.badgeText}>{meta.label}</Text>
         </View>
 
         <View style={styles.headerRight}>
+          {attachments.length > 0 && (
+            <View style={styles.metaChip}>
+              <Feather name="image" size={11} color={COLORS.textMuted} />
+              <Text style={styles.metaChipText}>{attachments.length}</Text>
+            </View>
+          )}
           {item.isLocked && (
-            <View style={styles.lockBadge}>
-              <Text style={styles.lockBadgeText}>{gated ? 'Locked' : 'Unlocked'}</Text>
+            <View style={styles.metaChip}>
+              <Feather
+                name={gated ? 'lock' : 'unlock'}
+                size={11}
+                color={COLORS.textMuted}
+              />
             </View>
           )}
           <TouchableOpacity
-            onPress={() => onTogglePin(item.id)}
-            hitSlop={8}
-            style={[styles.pinBtn, item.isPinned && styles.pinBtnActive]}
+            onPress={() => {
+              hapticTap('light');
+              onTogglePin(item.id);
+            }}
+            hitSlop={10}
+            style={styles.pinBtn}
           >
-            <Text style={[styles.pinText, !item.isPinned && styles.pinTextInactive]}>
-              {item.isPinned ? '📌' : '•'}
-            </Text>
+            <Feather
+              name="bookmark"
+              size={14}
+              color={item.isPinned ? COLORS.textPrimary : COLORS.textMuted}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -82,21 +115,22 @@ function VaultItemCard({
         {item.title}
       </Text>
 
-      {/* Body Content */}
+      {/* Body */}
       {gated && item.type !== 'PASSWORD' ? (
-        <TouchableOpacity style={styles.lockedBox} onPress={() => onRequestUnlock()} activeOpacity={0.7}>
-          <Text style={styles.lockedText}>Tap to unlock with PIN</Text>
+        <TouchableOpacity
+          style={styles.lockedBox}
+          onPress={() => onRequestUnlock(() => onOpenDetail && onOpenDetail(item))}
+          activeOpacity={0.7}
+        >
+          <Feather name="lock" size={13} color={COLORS.textMuted} />
+          <Text style={styles.lockedText}>Locked — tap to unlock with PIN</Text>
         </TouchableOpacity>
       ) : (
         <>
-          {/* CODE SNIPPET */}
-          {item.type === 'SNIPPET' && (
-            <View style={styles.codeBox}>
-              <Text style={styles.codeText} numberOfLines={expanded ? undefined : 8} selectable>
-                {item.content || '// empty code snippet'}
-              </Text>
-            </View>
-          )}
+          {/* VOICE MEMO */}
+          {item.audioUri ? (
+            <VoicePlayer uri={item.audioUri} durationMs={item.audioDurationMs} compact />
+          ) : null}
 
           {/* PASSWORD */}
           {item.type === 'PASSWORD' && (
@@ -108,11 +142,11 @@ function VaultItemCard({
                     {item.username}
                   </Text>
                   <TouchableOpacity
-                    onPress={() => onCopy(item.username, 'Username')}
+                    onPress={() => onCopy(item.username, 'Username', false)}
                     hitSlop={6}
                     style={styles.copySmallBtn}
                   >
-                    <Text style={styles.copySmallText}>Copy</Text>
+                    <Feather name="copy" size={12} color={COLORS.textPrimary} />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -123,18 +157,32 @@ function VaultItemCard({
                   {revealPw && !gated ? item.secretPassword : '••••••••••••'}
                 </Text>
                 <TouchableOpacity
-                  onPress={revealPw ? () => setRevealPw(false) : withUnlock(() => setRevealPw(true))}
+                  onPress={
+                    revealPw
+                      ? () => {
+                          hapticTap('light');
+                          setRevealPw(false);
+                        }
+                      : withUnlock(() => {
+                          hapticTap('light');
+                          setRevealPw(true);
+                        })
+                  }
                   hitSlop={6}
                   style={styles.copySmallBtn}
                 >
-                  <Text style={styles.copySmallText}>{revealPw ? 'Hide' : 'Reveal'}</Text>
+                  <Feather
+                    name={revealPw ? 'eye-off' : 'eye'}
+                    size={12}
+                    color={COLORS.textPrimary}
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={withUnlock(() => onCopy(item.secretPassword, 'Password'))}
+                  onPress={withUnlock(() => onCopy(item.secretPassword, 'Password', true))}
                   hitSlop={6}
                   style={styles.copySmallBtn}
                 >
-                  <Text style={styles.copySmallText}>Copy</Text>
+                  <Feather name="copy" size={12} color={COLORS.textPrimary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -156,11 +204,14 @@ function VaultItemCard({
                 <TouchableOpacity
                   key={c.id}
                   style={styles.taskRow}
-                  onPress={() => onToggleTask(item.id, c.id)}
+                  onPress={() => {
+                    hapticTap('light');
+                    onToggleTask(item.id, c.id);
+                  }}
                   activeOpacity={0.6}
                 >
                   <View style={[styles.checkbox, c.done && styles.checkboxDone]}>
-                    {c.done && <Text style={styles.checkmark}>✓</Text>}
+                    {c.done && <Feather name="check" size={11} color="#000000" />}
                   </View>
                   <Text style={[styles.taskLabel, c.done && styles.taskLabelDone]} numberOfLines={2}>
                     {c.text}
@@ -183,24 +234,35 @@ function VaultItemCard({
               style={styles.linkBox}
               activeOpacity={0.7}
             >
-              <Text style={styles.linkUrl} numberOfLines={1}>
-                {item.websiteUrl}
-              </Text>
-              <Text style={styles.linkArrow}>↗</Text>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.linkDomain}>{extractDomain(item.websiteUrl)}</Text>
+                <Text style={styles.linkUrl} numberOfLines={1}>
+                  {item.websiteUrl}
+                </Text>
+              </View>
+              <Feather name="external-link" size={14} color={COLORS.textSecondary} />
             </TouchableOpacity>
           ) : null}
 
-          {/* Note Body */}
-          {item.type !== 'SNIPPET' && item.content ? (
+          {/* Body Text */}
+          {item.content ? (
             <Text style={styles.bodyText} selectable>
               {bodyText}
             </Text>
           ) : null}
 
-          {longText && (
-            <TouchableOpacity onPress={() => setExpanded((e) => !e)} style={styles.expandBtn}>
-              <Text style={styles.expandText}>{expanded ? 'Show less' : 'Read more'}</Text>
-            </TouchableOpacity>
+          {/* Private Photo Thumbnails */}
+          {attachments.length > 0 && (
+            <View style={styles.thumbRow}>
+              {attachments.slice(0, 4).map((uri, idx) => (
+                <Image key={`${uri}_${idx}`} source={{ uri }} style={styles.thumbImg} />
+              ))}
+              {attachments.length > 4 && (
+                <View style={styles.thumbMore}>
+                  <Text style={styles.thumbMoreText}>+{attachments.length - 4}</Text>
+                </View>
+              )}
+            </View>
           )}
         </>
       )}
@@ -221,43 +283,46 @@ function VaultItemCard({
         <Text style={styles.dateText}>{formatDate(item.updatedAt)}</Text>
 
         <View style={styles.actions}>
-          {item.type === 'SNIPPET' && (
+          {item.type === 'LINK' && item.websiteUrl ? (
             <TouchableOpacity
               style={styles.actionBtn}
-              onPress={withUnlock(() => onCopy(item.content, 'Code'))}
+              onPress={() => onCopy(item.websiteUrl, 'Link', false)}
+              hitSlop={6}
             >
-              <Text style={styles.actionBtnText}>Copy Code</Text>
-            </TouchableOpacity>
-          )}
-
-          {item.type === 'LINK' && (
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => onCopy(item.websiteUrl, 'Link')}
-            >
-              <Text style={styles.actionBtnText}>Copy URL</Text>
-            </TouchableOpacity>
-          )}
-
-          {item.type === 'NOTE' && item.content ? (
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={withUnlock(() => onCopy(item.content, 'Note'))}
-            >
+              <Feather name="copy" size={12} color={COLORS.textPrimary} />
               <Text style={styles.actionBtnText}>Copy</Text>
             </TouchableOpacity>
           ) : null}
 
-          <TouchableOpacity style={styles.iconBtn} onPress={withUnlock(() => onEdit(item))}>
-            <Text style={styles.iconBtnText}>Edit</Text>
+          {item.type === 'NOTE' && item.content ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={withUnlock(() => onCopy(item.content, 'Note', false))}
+              hitSlop={6}
+            >
+              <Feather name="copy" size={12} color={COLORS.textPrimary} />
+              <Text style={styles.actionBtnText}>Copy</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          <TouchableOpacity
+            style={styles.iconActionBtn}
+            onPress={withUnlock(() => onEdit(item))}
+            hitSlop={6}
+          >
+            <Feather name="edit-2" size={13} color={COLORS.textSecondary} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.iconBtn} onPress={withUnlock(confirmDelete)}>
-            <Text style={[styles.iconBtnText, { color: COLORS.danger }]}>Delete</Text>
+          <TouchableOpacity
+            style={styles.iconActionBtn}
+            onPress={withUnlock(confirmDelete)}
+            hitSlop={6}
+          >
+            <Feather name="trash-2" size={13} color={COLORS.danger} />
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -281,6 +346,9 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: COLORS.surfaceElevated,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -292,7 +360,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: COLORS.badgeText,
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
     textTransform: 'uppercase'
   },
   headerRight: {
@@ -300,67 +368,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8
   },
-  lockBadge: {
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: COLORS.surfaceSubtle,
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4
+    paddingVertical: 3,
+    borderRadius: 5
   },
-  lockBadgeText: {
+  metaChipText: {
     fontSize: 10,
     color: COLORS.textMuted,
     fontWeight: '600'
   },
   pinBtn: {
-    paddingHorizontal: 4,
-    paddingVertical: 2
-  },
-  pinBtnActive: {
-    opacity: 1
-  },
-  pinText: {
-    fontSize: 12,
-    color: COLORS.textPrimary
-  },
-  pinTextInactive: {
-    color: COLORS.textMuted,
-    fontSize: 16
+    padding: 2
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.textPrimary,
     lineHeight: 22,
-    marginBottom: 8
+    marginBottom: 6
   },
   bodyText: {
     fontSize: 14,
     color: COLORS.textSecondary,
     lineHeight: 20,
-    marginBottom: 8
-  },
-  expandBtn: {
-    paddingVertical: 4,
-    marginBottom: 6
-  },
-  expandText: {
-    fontSize: 12,
-    color: COLORS.textPrimary,
-    fontWeight: '600'
-  },
-  codeBox: {
-    backgroundColor: COLORS.codeBg,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 12,
-    marginVertical: 6
-  },
-  codeText: {
-    fontFamily: mono,
-    fontSize: 12,
-    color: '#D4D4D8',
-    lineHeight: 18
+    marginTop: 4,
+    marginBottom: 4
   },
   pwContainer: {
     backgroundColor: COLORS.surfaceElevated,
@@ -373,7 +410,7 @@ const styles = StyleSheet.create({
   pwRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10
+    paddingVertical: 9
   },
   pwRowBorder: {
     borderTopWidth: 1,
@@ -384,7 +421,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textMuted,
     textTransform: 'uppercase',
-    width: 44
+    width: 42
   },
   pwVal: {
     flex: 1,
@@ -400,15 +437,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceSubtle,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    width: 28,
+    height: 28,
     borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: 6
-  },
-  copySmallText: {
-    fontSize: 11,
-    color: COLORS.textPrimary,
-    fontWeight: '600'
   },
   checklistContainer: {
     marginVertical: 6
@@ -416,7 +450,7 @@ const styles = StyleSheet.create({
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10
+    marginBottom: 8
   },
   progressTrack: {
     flex: 1,
@@ -439,12 +473,12 @@ const styles = StyleSheet.create({
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6
+    paddingVertical: 5
   },
   checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
+    width: 17,
+    height: 17,
+    borderRadius: 4,
     borderWidth: 1.5,
     borderColor: COLORS.borderHover,
     alignItems: 'center',
@@ -454,12 +488,6 @@ const styles = StyleSheet.create({
   checkboxDone: {
     backgroundColor: COLORS.textPrimary,
     borderColor: COLORS.textPrimary
-  },
-  checkmark: {
-    color: '#000000',
-    fontSize: 11,
-    fontWeight: '900',
-    lineHeight: 12
   },
   taskLabel: {
     flex: 1,
@@ -472,7 +500,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through'
   },
   expandMoreBtn: {
-    paddingVertical: 6
+    paddingVertical: 4
   },
   expandMoreText: {
     fontSize: 12,
@@ -485,28 +513,62 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
     marginVertical: 6
   },
-  linkUrl: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginRight: 8
+  linkDomain: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2
   },
-  linkArrow: {
-    fontSize: 14,
-    color: COLORS.textMuted
+  linkUrl: {
+    fontSize: 13,
+    color: COLORS.textSecondary
+  },
+  thumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8
+  },
+  thumbImg: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceElevated
+  },
+  thumbMore: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  thumbMoreText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary
   },
   lockedBox: {
+    flexDirection: 'row',
+    gap: 8,
     backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
     marginVertical: 6
   },
   lockedText: {
@@ -518,8 +580,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 8,
-    marginBottom: 4
+    marginTop: 10,
+    marginBottom: 2
   },
   tagPill: {
     backgroundColor: COLORS.surfaceSubtle,
@@ -537,7 +599,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 12,
-    marginTop: 8,
+    marginTop: 10,
     borderTopWidth: 1,
     borderTopColor: COLORS.border
   },
@@ -551,11 +613,14 @@ const styles = StyleSheet.create({
     gap: 8
   },
   actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 6
   },
   actionBtnText: {
@@ -563,13 +628,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.textPrimary
   },
-  iconBtn: {
-    paddingHorizontal: 4,
-    paddingVertical: 4
-  },
-  iconBtnText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '500'
+  iconActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center'
   }
 });

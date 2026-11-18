@@ -1,6 +1,8 @@
 // ============================================================================
-// src/utils/helpers.js — IDs, timestamps, password generator, search & stats
+// src/utils/helpers.js — IDs, timestamps, password generator, haptics & filters
 // ============================================================================
+
+import * as Haptics from 'expo-haptics';
 
 export function makeId(prefix = 'item') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -20,6 +22,53 @@ export function formatDate(iso) {
   return `${d.toLocaleDateString()} • ${time}`;
 }
 
+export function formatDuration(ms = 0) {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+export function extractDomain(url = '') {
+  if (!url) return '';
+  try {
+    const clean = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    const host = new URL(clean).hostname.replace(/^www\./i, '');
+    return host;
+  } catch (e) {
+    return url.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0];
+  }
+}
+
+export function isLikelyUrl(text = '') {
+  const trimmed = text.trim();
+  return /^https?:\/\/[^\s]+$/i.test(trimmed);
+}
+
+export function hapticTap(level = 'light') {
+  try {
+    const style =
+      level === 'medium'
+        ? Haptics.ImpactFeedbackStyle.Medium
+        : level === 'heavy'
+        ? Haptics.ImpactFeedbackStyle.Heavy
+        : Haptics.ImpactFeedbackStyle.Light;
+    Haptics.impactAsync(style).catch(() => {});
+  } catch (e) {}
+}
+
+export function hapticNotify(kind = 'success') {
+  try {
+    const type =
+      kind === 'error'
+        ? Haptics.NotificationFeedbackType.Error
+        : kind === 'warning'
+        ? Haptics.NotificationFeedbackType.Warning
+        : Haptics.NotificationFeedbackType.Success;
+    Haptics.notificationAsync(type).catch(() => {});
+  } catch (e) {}
+}
+
 const CHARSETS = {
   lower: 'abcdefghijkmnopqrstuvwxyz',
   upper: 'ABCDEFGHJKLMNPQRSTUVWXYZ',
@@ -30,7 +79,6 @@ const CHARSETS = {
 export function generatePassword(length = 16) {
   const all = CHARSETS.lower + CHARSETS.upper + CHARSETS.digits + CHARSETS.symbols;
   const pick = (set) => set[Math.floor(Math.random() * set.length)];
-  // Guarantee at least one of each character class
   const chars = [
     pick(CHARSETS.lower),
     pick(CHARSETS.upper),
@@ -38,7 +86,6 @@ export function generatePassword(length = 16) {
     pick(CHARSETS.symbols)
   ];
   while (chars.length < length) chars.push(pick(all));
-  // Fisher-Yates shuffle
   for (let i = chars.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [chars[i], chars[j]] = [chars[j], chars[i]];
@@ -77,7 +124,6 @@ export function filterItems(items, { query = '', category = 'ALL', tag = null })
         it.isLocked ? '' : it.content,
         it.username,
         it.websiteUrl,
-        it.language,
         ...(it.tags || []),
         ...(it.checklist || []).map((c) => c.text)
       ]
@@ -103,8 +149,9 @@ export function computeStats(items) {
   return {
     total: items.length,
     pinned: items.filter((i) => i.isPinned).length,
-    snippets: items.filter((i) => i.type === 'SNIPPET').length,
+    voiceMemos: items.filter((i) => i.type === 'VOICE').length,
     passwords: items.filter((i) => i.type === 'PASSWORD').length,
+    links: items.filter((i) => i.type === 'LINK').length,
     tasksTotal,
     tasksDone
   };

@@ -1,5 +1,7 @@
 // ============================================================================
 // src/components/QuickCaptureModal.js — Modern Minimalist Capture Sheet
+// Types: NOTE | VOICE | PASSWORD | CHECKLIST | LINK
+// Features: Smart Link Paste, Offline Voice Recorder, Private Photo/ID Vault
 // ============================================================================
 
 import React, { useEffect, useState } from 'react';
@@ -10,39 +12,58 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Image,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  useAudioRecorder,
+  useAudioRecorderState,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync
+} from 'expo-audio';
 import { COLORS } from '../theme/colors';
 import {
   makeId,
   nowIso,
   generatePassword,
   passwordStrength,
-  normalizeTag
+  normalizeTag,
+  formatDuration,
+  extractDomain,
+  isLikelyUrl,
+  hapticTap,
+  hapticNotify
 } from '../utils/helpers';
+import { saveMediaFile } from '../storage/vaultStorage';
+import VoicePlayer from './VoicePlayer';
 
 const TYPES = [
   { id: 'NOTE', label: 'Note' },
-  { id: 'SNIPPET', label: 'Code' },
+  { id: 'VOICE', label: 'Voice' },
   { id: 'PASSWORD', label: 'Password' },
   { id: 'CHECKLIST', label: 'Tasks' },
   { id: 'LINK', label: 'Link' }
 ];
 
-const LANGUAGES = ['javascript', 'typescript', 'python', 'bash', 'sql', 'html', 'css', 'json', 'other'];
-
 const blankDraft = (type = 'NOTE') => ({
   type,
   title: '',
   content: '',
-  language: 'javascript',
   username: '',
   secretPassword: '',
   websiteUrl: '',
   checklist: [],
   tags: [],
+  attachments: [],
+  audioUri: null,
+  audioDurationMs: 0,
   isPinned: false,
   isLocked: type === 'PASSWORD'
 });
@@ -61,29 +82,61 @@ export default function QuickCaptureModal({
   const [newTask, setNewTask] = useState('');
   const [newTag, setNewTag] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [detectedUrl, setDetectedUrl] = useState(null);
   const [error, setError] = useState('');
+
+  // Audio Recorder
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 250);
 
   useEffect(() => {
     if (!visible) return;
-    setDraft(initialItem ? { ...blankDraft(initialItem.type), ...initialItem } : blankDraft(initialType));
+    setDraft(
+      initialItem
+        ? { ...blankDraft(initialItem.type), ...initialItem }
+        : blankDraft(initialType)
+    );
     setNewTask('');
     setNewTag('');
     setShowPw(false);
     setError('');
+    setDetectedUrl(null);
+
+    // Smart Clipboard Link Detector when creating a new item
+    if (!initialItem) {
+      Clipboard.getStringAsync()
+        .then((clip) => {
+          if (clip && isLikelyUrl(clip)) {
+            setDetectedUrl(clip.trim());
+          }
+        })
+        .catch(() => {});
+    }
   }, [visible, initialItem, initialType]);
+
+  // Stop recording safely if modal is dismissed mid-recording
+  useEffect(() => {
+    if (!visible && recorderState?.isRecording) {
+      recorder.stop().catch(() => {});
+    }
+  }, [visible, recorderState?.isRecording, recorder]);
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
   const isEdit = Boolean(initialItem);
 
   function toggleTag(tag) {
+    hapticTap('light');
     set({
-      tags: draft.tags.includes(tag) ? draft.tags.filter((t) => t !== tag) : [...draft.tags, tag]
+      tags: draft.tags.includes(tag)
+        ? draft.tags.filter((t) => t !== tag)
+        : [...draft.tags, tag]
     });
   }
 
   function addCustomTag() {
     const t = normalizeTag(newTag);
     if (!t) return;
+    hapticTap('light');
     if (!allTags.includes(t)) onAddTag && onAddTag(t);
     if (!draft.tags.includes(t)) set({ tags: [...draft.tags, t] });
     setNewTag('');
@@ -92,28 +145,152 @@ export default function QuickCaptureModal({
   function addTask() {
     const text = newTask.trim();
     if (!text) return;
+    hapticTap('light');
     set({ checklist: [...draft.checklist, { id: makeId('c'), text, done: false }] });
     setNewTask('');
   }
 
-  function save() {
-    const title = draft.title.trim();
+  async function startVoiceRecording() {
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Microphone Permission',
+          'Allow microphone access in your device settings to record offline voice memos.'
+        );
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true
+      });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      hapticTap('medium');
+      setError('');
+    } catch (e) {
+      Alert.alert('Recording Error', 'Could not start audio recording on this device.');
+    }
+  }
+
+  async function stopVoiceRecording() {
+    try {
+      const durationMs = recorderState?.durationMillis || 0;
+      await recorder.stop();
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true
+      });
+      if (recorder.uri) {
+        const storedUri = await saveMediaFile(recorder.uri, 'voice', '.m4a');
+        set({ audioUri: storedUri, audioDurationMs: durationMs });
+        hapticNotify('success');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not save the voice recording.');
+    }
+  }
+
+  async function pickPhoto(useCamera = false) {
+    try {
+      if (useCamera) {
+        const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!camPerm.granted) {
+          Alert.alert('Camera Permission', 'Allow camera access to capture private photos.');
+          return;
+        }
+      } else {
+        const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!libPerm.granted) {
+          Alert.alert('Gallery Permission', 'Allow photo access to import private images.');
+          return;
+        }
+      }
+
+      const res = useCamera
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            quality: 0.85
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsMultipleSelection: true,
+            quality: 0.85
+          });
+
+      if (res.canceled || !res.assets || res.assets.length === 0) return;
+
+      const savedUris = [];
+      for (const asset of res.assets) {
+        const savedUri = await saveMediaFile(asset.uri, 'img', '.jpg');
+        if (savedUri) savedUris.push(savedUri);
+      }
+
+      if (savedUris.length > 0) {
+        hapticNotify('success');
+        set({ attachments: [...(draft.attachments || []), ...savedUris] });
+      }
+    } catch (e) {
+      Alert.alert('Attachment Error', 'Could not attach the selected image.');
+    }
+  }
+
+  function removeAttachment(idx) {
+    hapticTap('light');
+    set({
+      attachments: (draft.attachments || []).filter((_, i) => i !== idx)
+    });
+  }
+
+  function applyDetectedLink() {
+    if (!detectedUrl) return;
+    hapticTap('light');
+    const domain = extractDomain(detectedUrl);
+    set({
+      type: 'LINK',
+      websiteUrl: detectedUrl,
+      title: draft.title.trim() ? draft.title : `Saved from ${domain}`
+    });
+    setDetectedUrl(null);
+  }
+
+  async function save() {
+    if (recorderState?.isRecording) {
+      await stopVoiceRecording();
+    }
+
+    let title = draft.title.trim();
+    if (!title && draft.type === 'VOICE' && draft.audioUri) {
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      title = `Voice Memo • ${time}`;
+    }
+
     if (!title) {
+      hapticNotify('error');
       setError('Title is required');
       return;
     }
+    if (draft.type === 'VOICE' && !draft.audioUri) {
+      hapticNotify('error');
+      setError('Record a voice memo first');
+      return;
+    }
     if (draft.type === 'PASSWORD' && !draft.secretPassword) {
+      hapticNotify('error');
       setError('Password is required');
       return;
     }
     if (draft.type === 'LINK' && !draft.websiteUrl.trim()) {
+      hapticNotify('error');
       setError('Valid URL is required');
       return;
     }
+
     let url = draft.websiteUrl.trim();
     if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
 
     const ts = nowIso();
+    hapticNotify('success');
     onSave({
       ...draft,
       title,
@@ -137,12 +314,32 @@ export default function QuickCaptureModal({
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{isEdit ? 'Edit Item' : 'New Item'}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>
-              <Text style={styles.closeText}>✕</Text>
+              <Feather name="x" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {/* Type Segmented Control */}
+            {/* Smart Clipboard URL Banner */}
+            {!isEdit && detectedUrl && (
+              <TouchableOpacity
+                style={styles.clipboardBanner}
+                onPress={applyDetectedLink}
+                activeOpacity={0.75}
+              >
+                <Feather name="link-2" size={14} color={COLORS.textPrimary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.clipboardTitle}>
+                    Link in clipboard ({extractDomain(detectedUrl)})
+                  </Text>
+                  <Text style={styles.clipboardSub} numberOfLines={1}>
+                    Tap to save as Link bookmark
+                  </Text>
+                </View>
+                <Text style={styles.clipboardAction}>Fill</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Segmented Type Selector */}
             <View style={styles.segmentContainer}>
               {TYPES.map((t) => {
                 const active = draft.type === t.id;
@@ -150,8 +347,19 @@ export default function QuickCaptureModal({
                   <TouchableOpacity
                     key={t.id}
                     disabled={isEdit}
-                    onPress={() => set({ type: t.id, isLocked: t.id === 'PASSWORD' ? true : draft.isLocked })}
-                    style={[styles.segmentBtn, active && styles.segmentBtnActive]}
+                    onPress={() => {
+                      hapticTap('light');
+                      set({
+                        type: t.id,
+                        isLocked: t.id === 'PASSWORD' ? true : draft.isLocked
+                      });
+                      setError('');
+                    }}
+                    style={[
+                      styles.segmentBtn,
+                      active && styles.segmentBtnActive,
+                      isEdit && !active && { opacity: 0.4 }
+                    ]}
                   >
                     <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
                       {t.label}
@@ -162,18 +370,20 @@ export default function QuickCaptureModal({
             </View>
 
             {/* Title */}
-            <Text style={styles.label}>TITLE</Text>
+            <Text style={styles.label}>
+              {draft.type === 'VOICE' ? 'TITLE (OPTIONAL)' : 'TITLE'}
+            </Text>
             <TextInput
               style={styles.input}
               placeholder={
                 draft.type === 'PASSWORD'
-                  ? 'Service name (e.g. GitHub, Bank)'
-                  : draft.type === 'SNIPPET'
-                  ? 'Snippet title'
+                  ? 'Service name (e.g. GitHub, GCash, Gmail)'
+                  : draft.type === 'VOICE'
+                  ? 'Auto-named if left blank'
                   : draft.type === 'CHECKLIST'
                   ? 'Checklist title'
                   : draft.type === 'LINK'
-                  ? 'Bookmark title'
+                  ? 'Video, article, or product title'
                   : 'Note title'
               }
               placeholderTextColor={COLORS.textMuted}
@@ -184,38 +394,57 @@ export default function QuickCaptureModal({
               }}
             />
 
-            {/* SNIPPET */}
-            {draft.type === 'SNIPPET' && (
-              <>
-                <Text style={styles.label}>LANGUAGE</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.langScroll}>
-                  {LANGUAGES.map((l) => {
-                    const active = draft.language === l;
-                    return (
+            {/* VOICE RECORDER (Primary for VOICE, optional attach for NOTE) */}
+            {(draft.type === 'VOICE' || draft.type === 'NOTE') && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.label}>
+                  {draft.type === 'VOICE' ? 'VOICE RECORDING' : 'VOICE MEMO (OPTIONAL)'}
+                </Text>
+
+                {recorderState?.isRecording ? (
+                  <View style={styles.recordingBar}>
+                    <View style={styles.recDot} />
+                    <Text style={styles.recStatusText}>
+                      Recording • {formatDuration(recorderState.durationMillis || 0)}
+                    </Text>
+                    <TouchableOpacity style={styles.stopBtn} onPress={stopVoiceRecording}>
+                      <Feather name="square" size={12} color="#FFFFFF" />
+                      <Text style={styles.stopBtnText}>Stop</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : draft.audioUri ? (
+                  <View>
+                    <VoicePlayer uri={draft.audioUri} durationMs={draft.audioDurationMs} />
+                    <View style={styles.audioActions}>
                       <TouchableOpacity
-                        key={l}
-                        onPress={() => set({ language: l })}
-                        style={[styles.langChip, active && styles.langChipActive]}
+                        style={styles.smallOutlineBtn}
+                        onPress={startVoiceRecording}
                       >
-                        <Text style={[styles.langChipText, active && styles.langChipTextActive]}>
-                          {l}
+                        <Feather name="mic" size={12} color={COLORS.textSecondary} />
+                        <Text style={styles.smallOutlineText}>Re-record</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.smallOutlineBtn}
+                        onPress={() => set({ audioUri: null, audioDurationMs: 0 })}
+                      >
+                        <Feather name="trash-2" size={12} color={COLORS.danger} />
+                        <Text style={[styles.smallOutlineText, { color: COLORS.danger }]}>
+                          Remove Audio
                         </Text>
                       </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-                <Text style={styles.label}>CODE</Text>
-                <TextInput
-                  style={[styles.input, styles.codeInput]}
-                  placeholder="// Paste or write code snippet..."
-                  placeholderTextColor={COLORS.textMuted}
-                  value={draft.content}
-                  onChangeText={(v) => set({ content: v })}
-                  multiline
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.recordTriggerBtn}
+                    onPress={startVoiceRecording}
+                    activeOpacity={0.75}
+                  >
+                    <Feather name="mic" size={15} color={COLORS.textPrimary} />
+                    <Text style={styles.recordTriggerText}>Tap to Record Voice Memo</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
 
             {/* PASSWORD */}
@@ -246,12 +475,23 @@ export default function QuickCaptureModal({
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-                  <TouchableOpacity style={styles.iconBtn} onPress={() => setShowPw((s) => !s)}>
-                    <Text style={styles.iconBtnText}>{showPw ? 'Hide' : 'Show'}</Text>
+                  <TouchableOpacity
+                    style={styles.iconBtn}
+                    onPress={() => {
+                      hapticTap('light');
+                      setShowPw((s) => !s);
+                    }}
+                  >
+                    <Feather
+                      name={showPw ? 'eye-off' : 'eye'}
+                      size={15}
+                      color={COLORS.textSecondary}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.iconBtn, styles.iconBtnPrimary]}
                     onPress={() => {
+                      hapticTap('medium');
                       set({ secretPassword: generatePassword(16) });
                       setShowPw(true);
                       setError('');
@@ -276,7 +516,7 @@ export default function QuickCaptureModal({
                     </Text>
                   </View>
                 ) : (
-                  <View style={{ height: 10 }} />
+                  <View style={{ height: 12 }} />
                 )}
 
                 <Text style={styles.label}>WEBSITE (OPTIONAL)</Text>
@@ -296,10 +536,10 @@ export default function QuickCaptureModal({
             {/* LINK */}
             {draft.type === 'LINK' && (
               <>
-                <Text style={styles.label}>URL</Text>
+                <Text style={styles.label}>URL (FACEBOOK / YOUTUBE / TIKTOK / WEB)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="https://example.com"
+                  placeholder="https://..."
                   placeholderTextColor={COLORS.textMuted}
                   value={draft.websiteUrl}
                   onChangeText={(v) => {
@@ -320,32 +560,35 @@ export default function QuickCaptureModal({
                 {draft.checklist.map((c) => (
                   <View key={c.id} style={styles.taskRow}>
                     <TouchableOpacity
-                      onPress={() =>
+                      onPress={() => {
+                        hapticTap('light');
                         set({
                           checklist: draft.checklist.map((x) =>
                             x.id === c.id ? { ...x, done: !x.done } : x
                           )
-                        })
-                      }
+                        });
+                      }}
                       style={[styles.checkbox, c.done && styles.checkboxDone]}
                     >
-                      {c.done && <Text style={styles.checkDoneText}>✓</Text>}
+                      {c.done && <Feather name="check" size={11} color="#000000" />}
                     </TouchableOpacity>
                     <Text style={[styles.taskText, c.done && styles.taskDone]} numberOfLines={2}>
                       {c.text}
                     </Text>
                     <TouchableOpacity
-                      onPress={() => set({ checklist: draft.checklist.filter((x) => x.id !== c.id) })}
+                      onPress={() =>
+                        set({ checklist: draft.checklist.filter((x) => x.id !== c.id) })
+                      }
                       hitSlop={8}
                     >
-                      <Text style={styles.taskDeleteText}>✕</Text>
+                      <Feather name="x" size={14} color={COLORS.textMuted} />
                     </TouchableOpacity>
                   </View>
                 ))}
                 <View style={[styles.row, { marginBottom: 14 }]}>
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder="Add task and press Add..."
+                    placeholder="Add task and tap Add..."
                     placeholderTextColor={COLORS.textMuted}
                     value={newTask}
                     onChangeText={setNewTask}
@@ -360,19 +603,64 @@ export default function QuickCaptureModal({
               </>
             )}
 
-            {/* Body (for NOTE, LINK, or PASSWORD note) */}
-            {draft.type !== 'SNIPPET' && (
-              <>
-                <Text style={styles.label}>{draft.type === 'NOTE' ? 'NOTE' : 'NOTES (OPTIONAL)'}</Text>
-                <TextInput
-                  style={[styles.input, styles.multiInput]}
-                  placeholder={draft.type === 'NOTE' ? 'Write your thoughts...' : 'Additional notes...'}
-                  placeholderTextColor={COLORS.textMuted}
-                  value={draft.content}
-                  onChangeText={(v) => set({ content: v })}
-                  multiline
-                />
-              </>
+            {/* Body Notes */}
+            <Text style={styles.label}>
+              {draft.type === 'NOTE' ? 'NOTE' : 'NOTES (OPTIONAL)'}
+            </Text>
+            <TextInput
+              style={[styles.input, styles.multiInput]}
+              placeholder={
+                draft.type === 'NOTE'
+                  ? 'Write your thoughts...'
+                  : 'Extra details, recovery codes, or reminder...'
+              }
+              placeholderTextColor={COLORS.textMuted}
+              value={draft.content}
+              onChangeText={(v) => set({ content: v })}
+              multiline
+            />
+
+            {/* Private Photo / ID Attachments */}
+            {(draft.type === 'NOTE' || draft.type === 'VOICE' || draft.type === 'PASSWORD') && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.label}>PRIVATE PHOTOS / IDs (OPTIONAL)</Text>
+                {(draft.attachments || []).length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginBottom: 10 }}
+                  >
+                    {draft.attachments.map((uri, idx) => (
+                      <View key={`${uri}_${idx}`} style={styles.attachWrap}>
+                        <Image source={{ uri }} style={styles.attachThumb} />
+                        <TouchableOpacity
+                          style={styles.attachRemove}
+                          onPress={() => removeAttachment(idx)}
+                        >
+                          <Feather name="x" size={11} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[styles.attachBtn, { flex: 1 }]}
+                    onPress={() => pickPhoto(true)}
+                  >
+                    <Feather name="camera" size={14} color={COLORS.textSecondary} />
+                    <Text style={styles.attachBtnText}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.attachBtn, { flex: 1 }]}
+                    onPress={() => pickPhoto(false)}
+                  >
+                    <Feather name="image" size={14} color={COLORS.textSecondary} />
+                    <Text style={styles.attachBtnText}>Gallery</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             )}
 
             {/* Tags */}
@@ -410,30 +698,48 @@ export default function QuickCaptureModal({
             <View style={styles.toggleRow}>
               <TouchableOpacity
                 style={[styles.toggle, draft.isPinned && styles.toggleOn]}
-                onPress={() => set({ isPinned: !draft.isPinned })}
+                onPress={() => {
+                  hapticTap('light');
+                  set({ isPinned: !draft.isPinned });
+                }}
               >
+                <Feather
+                  name="bookmark"
+                  size={13}
+                  color={draft.isPinned ? COLORS.textPrimary : COLORS.textMuted}
+                />
                 <Text style={[styles.toggleText, draft.isPinned && styles.toggleTextOn]}>
-                  {draft.isPinned ? '📌 Pinned to top' : 'Pin to top'}
+                  {draft.isPinned ? 'Pinned' : 'Pin to top'}
                 </Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.toggle, draft.isLocked && styles.toggleOn]}
-                onPress={() => set({ isLocked: !draft.isLocked })}
+                onPress={() => {
+                  hapticTap('light');
+                  set({ isLocked: !draft.isLocked });
+                }}
               >
+                <Feather
+                  name="lock"
+                  size={13}
+                  color={draft.isLocked ? COLORS.textPrimary : COLORS.textMuted}
+                />
                 <Text style={[styles.toggleText, draft.isLocked && styles.toggleTextOn]}>
-                  {draft.isLocked ? '🔒 PIN Protected' : 'Protect with PIN'}
+                  {draft.isLocked ? 'PIN Protected' : 'Lock with PIN'}
                 </Text>
               </TouchableOpacity>
             </View>
+
             {draft.isLocked && !hasPin && (
-              <Text style={styles.warn}>Set a master PIN in Settings to lock this item.</Text>
+              <Text style={styles.warn}>Set a Master PIN in Settings to enforce locking.</Text>
             )}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             {/* Save */}
             <TouchableOpacity style={styles.saveBtn} onPress={save} activeOpacity={0.85}>
-              <Text style={styles.saveText}>{isEdit ? 'Save Changes' : 'Create Item'}</Text>
+              <Text style={styles.saveText}>{isEdit ? 'Save Changes' : 'Save to Vault'}</Text>
             </TouchableOpacity>
             <View style={{ height: 28 }} />
           </ScrollView>
@@ -463,7 +769,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16
+    marginBottom: 14
   },
   headerTitle: {
     color: COLORS.textPrimary,
@@ -478,10 +784,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  closeText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    fontWeight: '600'
+  clipboardBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderHover,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14
+  },
+  clipboardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textPrimary
+  },
+  clipboardSub: {
+    fontSize: 11,
+    color: COLORS.textMuted
+  },
+  clipboardAction: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000000',
+    backgroundColor: COLORS.textPrimary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6
   },
   segmentContainer: {
     flexDirection: 'row',
@@ -529,41 +860,123 @@ const styles = StyleSheet.create({
     marginBottom: 14
   },
   multiInput: {
-    minHeight: 85,
+    minHeight: 82,
     textAlignVertical: 'top'
   },
-  codeInput: {
-    minHeight: 120,
-    textAlignVertical: 'top',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 12.5,
-    backgroundColor: COLORS.codeBg,
-    color: '#D4D4D8'
+  sectionBlock: {
+    marginBottom: 14
   },
-  langScroll: {
-    marginBottom: 12
+  recordTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderHover,
+    borderRadius: 10,
+    paddingVertical: 13
   },
-  langChip: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 6,
+  recordTriggerText: {
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  recordingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10
+  },
+  recDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.danger
+  },
+  recStatusText: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  stopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.danger,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 7
+  },
+  stopBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  audioActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4
+  },
+  smallOutlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surfaceElevated,
-    marginRight: 6
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6
   },
-  langChipActive: {
-    borderColor: COLORS.textPrimary,
-    backgroundColor: COLORS.surfaceSubtle
-  },
-  langChipText: {
-    color: COLORS.textMuted,
+  smallOutlineText: {
     fontSize: 11,
+    color: COLORS.textSecondary,
     fontWeight: '600'
   },
-  langChipTextActive: {
-    color: COLORS.textPrimary,
-    fontWeight: '700'
+  attachWrap: {
+    position: 'relative',
+    marginRight: 10
+  },
+  attachThumb: {
+    width: 68,
+    height: 68,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border
+  },
+  attachRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  attachBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingVertical: 10
+  },
+  attachBtnText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '600'
   },
   row: {
     flexDirection: 'row',
@@ -643,11 +1056,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.textPrimary,
     borderColor: COLORS.textPrimary
   },
-  checkDoneText: {
-    color: '#000000',
-    fontSize: 11,
-    fontWeight: '900'
-  },
   taskText: {
     flex: 1,
     color: COLORS.textPrimary,
@@ -656,11 +1064,6 @@ const styles = StyleSheet.create({
   taskDone: {
     color: COLORS.textMuted,
     textDecorationLine: 'line-through'
-  },
-  taskDeleteText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    paddingHorizontal: 4
   },
   tagWrap: {
     flexDirection: 'row',
@@ -696,12 +1099,15 @@ const styles = StyleSheet.create({
   },
   toggle: {
     flex: 1,
+    flexDirection: 'row',
+    gap: 6,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surfaceElevated,
-    alignItems: 'center'
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   toggleOn: {
     borderColor: COLORS.borderHover,
