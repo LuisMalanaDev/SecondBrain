@@ -20,12 +20,13 @@ import {
   computeExpenseStats,
   hapticTap
 } from '../utils/helpers';
+import DatePickerModal from './DatePickerModal';
 
 const PERIODS = [
   { id: '7D', label: '7 Days' },
   { id: '30D', label: '30 Days' },
   { id: 'MONTH', label: 'This Month' },
-  { id: 'ALL', label: 'All Time' }
+  { id: 'CUSTOM', label: 'Pick Date' }
 ];
 
 const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -37,7 +38,14 @@ export default function AnalyticsSection({
 }) {
   const [period, setPeriod] = useState('7D');
   const todayKey = toLocalDateKey(new Date());
+  const [customDateKey, setCustomDateKey] = useState(todayKey);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDayKey, setSelectedDayKey] = useState(todayKey);
+
+  const markedDateKeys = useMemo(
+    () => Array.from(new Set(expenses.map((e) => toLocalDateKey(e.createdAt)))),
+    [expenses]
+  );
 
   const periodExpenses = useMemo(() => {
     const start7 = addDaysToDateKey(todayKey, -6);
@@ -49,9 +57,10 @@ export default function AnalyticsSection({
       if (period === '7D') return key >= start7 && key <= todayKey;
       if (period === '30D') return key >= start30 && key <= todayKey;
       if (period === 'MONTH') return key.startsWith(monthPrefix);
+      if (period === 'CUSTOM') return key === customDateKey;
       return true;
     });
-  }, [expenses, period, todayKey]);
+  }, [expenses, period, todayKey, customDateKey]);
 
   const flow = useMemo(() => computeExpenseStats(periodExpenses), [periodExpenses]);
 
@@ -63,6 +72,7 @@ export default function AnalyticsSection({
       const dayOfMonth = Number(todayKey.slice(8, 10)) || 1;
       return flow.totalSpent / dayOfMonth;
     }
+    if (period === 'CUSTOM') return flow.totalSpent;
     const distinctDays = new Set(
       periodExpenses.filter((e) => e.kind !== 'CASH_IN').map((e) => toLocalDateKey(e.createdAt))
     ).size;
@@ -134,69 +144,94 @@ export default function AnalyticsSection({
     stats.tasksTotal > 0 ? Math.round((stats.tasksDone / stats.tasksTotal) * 100) : 0;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Period Selector */}
-      <View style={styles.periodRow}>
-        {PERIODS.map((p) => {
-          const active = period === p.id;
-          return (
-            <TouchableOpacity
-              key={p.id}
-              style={[styles.periodBtn, active && styles.periodBtnActive]}
-              onPress={() => {
-                hapticTap('light');
-                setPeriod(p.id);
-              }}
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Period Selector */}
+        <View style={styles.periodRow}>
+          {PERIODS.map((p) => {
+            const active = period === p.id;
+            const label =
+              p.id === 'CUSTOM' && active
+                ? formatShortDate(customDateKey)
+                : p.label;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                style={[styles.periodBtn, active && styles.periodBtnActive]}
+                onPress={() => {
+                  hapticTap('light');
+                  if (p.id === 'CUSTOM') {
+                    setCalendarOpen(true);
+                  } else {
+                    setPeriod(p.id);
+                  }
+                }}
+              >
+                <View style={styles.periodBtnInner}>
+                  {p.id === 'CUSTOM' && (
+                    <Feather
+                      name="calendar"
+                      size={11}
+                      color={active ? COLORS.textPrimary : COLORS.textMuted}
+                    />
+                  )}
+                  <Text
+                    style={[styles.periodText, active && styles.periodTextActive]}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Cash Flow 2x2 Summary */}
+        <View style={styles.gridRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>CASH ADDED</Text>
+            <Text style={[styles.statVal, { color: COLORS.success }]}>
+              +{formatPeso(flow.totalCashIn)}
+            </Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>TOTAL SPENT</Text>
+            <Text style={styles.statVal}>-{formatPeso(flow.totalSpent)}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.gridRow, { marginBottom: 18 }]}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>NET REMAINING</Text>
+            <Text
+              style={[
+                styles.statVal,
+                flow.balance < 0 && { color: COLORS.danger }
+              ]}
             >
-              <Text style={[styles.periodText, active && styles.periodTextActive]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+              {formatPeso(flow.balance)}
+            </Text>
+            {savedPct !== null && (
+              <Text style={styles.statSub}>{savedPct}% kept</Text>
+            )}
+          </View>
 
-      {/* Cash Flow 2x2 Summary */}
-      <View style={styles.gridRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>CASH ADDED</Text>
-          <Text style={[styles.statVal, { color: COLORS.success }]}>
-            +{formatPeso(flow.totalCashIn)}
-          </Text>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>
+              {period === 'CUSTOM' ? 'SPENT ON DATE' : 'DAILY AVG SPEND'}
+            </Text>
+            <Text style={styles.statVal}>{formatPeso(dailyAvgSpend)}</Text>
+            <Text style={styles.statSub}>
+              {period === 'CUSTOM' ? formatShortDate(customDateKey) : 'per day'}
+            </Text>
+          </View>
         </View>
-
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>TOTAL SPENT</Text>
-          <Text style={styles.statVal}>-{formatPeso(flow.totalSpent)}</Text>
-        </View>
-      </View>
-
-      <View style={[styles.gridRow, { marginBottom: 18 }]}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>NET REMAINING</Text>
-          <Text
-            style={[
-              styles.statVal,
-              flow.balance < 0 && { color: COLORS.danger }
-            ]}
-          >
-            {formatPeso(flow.balance)}
-          </Text>
-          {savedPct !== null && (
-            <Text style={styles.statSub}>{savedPct}% kept</Text>
-          )}
-        </View>
-
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>DAILY AVG SPEND</Text>
-          <Text style={styles.statVal}>{formatPeso(dailyAvgSpend)}</Text>
-          <Text style={styles.statSub}>per day</Text>
-        </View>
-      </View>
 
       {/* 7-Day Daily Spending Bar Chart */}
       <View style={styles.card}>
@@ -354,7 +389,22 @@ export default function AnalyticsSection({
           </View>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+
+      <DatePickerModal
+        visible={calendarOpen}
+        selectedDateKey={customDateKey}
+        markedDateKeys={markedDateKeys}
+        title="Pick Analytics Date"
+        onSelect={(key) => {
+          setCustomDateKey(key);
+          setPeriod('CUSTOM');
+          setSelectedDayKey(key);
+          setCalendarOpen(false);
+        }}
+        onClose={() => setCalendarOpen(false)}
+      />
+    </View>
   );
 }
 
@@ -379,14 +429,21 @@ const styles = StyleSheet.create({
   periodBtn: {
     flex: 1,
     paddingVertical: 7,
+    paddingHorizontal: 4,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 7
+  },
+  periodBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
   },
   periodBtnActive: {
     backgroundColor: COLORS.surfaceElevated
   },
   periodText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: COLORS.textMuted
   },

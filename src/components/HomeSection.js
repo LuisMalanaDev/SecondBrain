@@ -35,7 +35,7 @@ const FEATURE_GUIDE = [
     title: 'Spending Analytics',
     icon: 'bar-chart-2',
     summary:
-      'Visual breakdown of your cash flow, daily spending trends, top categories, and vault usage across 7 days, 30 days, or all time.'
+      'Visual breakdown of your cash flow, daily spending trends, top categories, and vault usage across 7 days, 30 days, or any picked date.'
   },
   {
     id: 'NOTE',
