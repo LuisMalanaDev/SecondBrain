@@ -661,38 +661,78 @@ function AppShell({
     await saveCompanionState(DEFAULT_COMPANION_STATE);
   };
 
+  const updateCompanionMeta = useCallback(
+    async (buildPatch) => {
+      const base = { ...DEFAULT_COMPANION_STATE, ...(companionState || {}) };
+      const patch = buildPatch(base);
+      if (!patch) return null;
+      const next = { ...base, ...patch };
+      setCompanionState(next);
+      await saveCompanionState(next);
+      return next;
+    },
+    [companionState, setCompanionState]
+  );
+
   const handleNurtureCompanion = useCallback(async () => {
     const todayKey = toLocalDateKey(new Date());
     const yesterdayKey = addDaysToDateKey(todayKey, -1);
-    if (companionState?.lastCheckInKey === todayKey) return;
+    const next = await updateCompanionMeta((base) => {
+      if (base.lastCheckInKey === todayKey) return null;
+      const prevStreak = base.lastCheckInKey === yesterdayKey ? base.streak || 0 : 0;
+      const nextStreak = prevStreak + 1;
+      return {
+        lastCheckInKey: todayKey,
+        streak: nextStreak,
+        bestStreak: Math.max(base.bestStreak || 0, nextStreak),
+        checkInCount: (base.checkInCount || 0) + 1,
+        bonusXp: (base.bonusXp || 0) + 30
+      };
+    });
+    if (next) showToast(`Nurtured! +30 XP • ${next.streak}d Streak`);
+  }, [updateCompanionMeta, showToast]);
 
-    const prevStreak = companionState?.lastCheckInKey === yesterdayKey ? (companionState?.streak || 0) : 0;
-    const nextStreak = prevStreak + 1;
-    const next = {
-      ...DEFAULT_COMPANION_STATE,
-      ...(companionState || {}),
-      lastCheckInKey: todayKey,
-      streak: nextStreak,
-      bestStreak: Math.max(companionState?.bestStreak || 0, nextStreak),
-      checkInCount: (companionState?.checkInCount || 0) + 1,
-      bonusXp: (companionState?.bonusXp || 0) + 30
-    };
-    setCompanionState(next);
-    await saveCompanionState(next);
-    showToast(`Nurtured! +30 XP • ${nextStreak}d Streak`);
-  }, [companionState, setCompanionState, showToast]);
+  const handleClaimDailyClear = useCallback(async () => {
+    const todayKey = toLocalDateKey(new Date());
+    const next = await updateCompanionMeta((base) => {
+      if (base.lastDailyClearKey === todayKey) return null;
+      return {
+        lastDailyClearKey: todayKey,
+        bonusXp: (base.bonusXp || 0) + 40
+      };
+    });
+    if (next) showToast('3/3 Daily Clear! +40 XP');
+  }, [updateCompanionMeta, showToast]);
+
+  const handleCompleteFocusSession = useCallback(
+    async (minutes = 15) => {
+      const todayKey = toLocalDateKey(new Date());
+      await updateCompanionMeta((base) => ({
+        focusMinutesTotal: (base.focusMinutesTotal || 0) + Number(minutes || 0),
+        focusSessionsCount: (base.focusSessionsCount || 0) + 1,
+        lastFocusDateKey: todayKey,
+        bonusXp: (base.bonusXp || 0) + 25
+      }));
+      showToast(`Focus complete! +25 XP`);
+    },
+    [updateCompanionMeta, showToast]
+  );
+
+  const handleQuizSolved = useCallback(async () => {
+    await updateCompanionMeta((base) => ({
+      quizSolvedCount: (base.quizSolvedCount || 0) + 1,
+      bonusXp: (base.bonusXp || 0) + 15
+    }));
+    showToast('Correct! +15 XP');
+  }, [updateCompanionMeta, showToast]);
 
   const handleChangeCompanionForm = useCallback(
     async (form) => {
-      const next = {
-        ...DEFAULT_COMPANION_STATE,
-        ...(companionState || {}),
+      await updateCompanionMeta(() => ({
         form: form === 'TREE' ? 'TREE' : 'ORB'
-      };
-      setCompanionState(next);
-      await saveCompanionState(next);
+      }));
     },
-    [companionState, setCompanionState]
+    [updateCompanionMeta]
   );
 
   const companionProgress = useMemo(
@@ -947,6 +987,10 @@ function AppShell({
           hasPin={Boolean(pinCode)}
           companionState={companionState}
           onNurtureDaily={handleNurtureCompanion}
+          onClaimDailyClear={handleClaimDailyClear}
+          onCompleteFocusSession={handleCompleteFocusSession}
+          onQuizSolved={handleQuizSolved}
+          onToggleTask={handleToggleTask}
           onChangeForm={handleChangeCompanionForm}
           onSelectSection={handleSelectSection}
         />
