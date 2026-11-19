@@ -226,11 +226,12 @@ export async function loadVaultState() {
     const db = await getDb();
     await migrateLegacyAsyncStorageIfNeeded(db);
 
-    const [rows, expenseRows, eventRows, metaSettings, pinCode] = await Promise.all([
+    const [rows, expenseRows, eventRows, metaSettings, metaAck, pinCode] = await Promise.all([
       db.getAllAsync('SELECT * FROM vault_items ORDER BY isPinned DESC, updatedAt DESC'),
       db.getAllAsync('SELECT * FROM vault_expenses ORDER BY createdAt DESC'),
       db.getAllAsync('SELECT * FROM vault_events ORDER BY updatedAt DESC'),
       db.getFirstAsync('SELECT value FROM vault_meta WHERE key = ?', 'settings'),
+      db.getFirstAsync('SELECT value FROM vault_meta WHERE key = ?', 'acknowledged_alerts'),
       getPinFromSecureStore()
     ]);
 
@@ -245,12 +246,32 @@ export async function loadVaultState() {
       } catch (e) {}
     }
 
-    return { items, expenses, events, pinCode, settings };
+    let acknowledgedAlerts = {};
+    if (metaAck?.value) {
+      try {
+        const parsedAck = JSON.parse(metaAck.value);
+        if (parsedAck && typeof parsedAck === 'object') {
+          // Prune entries older than 7 days to keep vault_meta clean
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 7);
+          const cutoffStr = cutoff.toISOString().slice(0, 10);
+          Object.entries(parsedAck).forEach(([k, v]) => {
+            const datePart = k.split('|')[1] || '';
+            if (v && datePart >= cutoffStr) {
+              acknowledgedAlerts[k] = true;
+            }
+          });
+        }
+      } catch (e) {}
+    }
+
+    return { items, expenses, events, acknowledgedAlerts, pinCode, settings };
   } catch (e) {
     return {
       items: [],
       expenses: [],
       events: [],
+      acknowledgedAlerts: {},
       pinCode: null,
       settings: { ...DEFAULT_SETTINGS }
     };
@@ -448,6 +469,18 @@ export async function clearAllVaultEvents() {
   try {
     const db = await getDb();
     await db.runAsync('DELETE FROM vault_events');
+    await db.runAsync('DELETE FROM vault_meta WHERE key = ?', 'acknowledged_alerts');
+  } catch (e) {}
+}
+
+export async function saveAcknowledgedAlerts(acknowledgedAlerts = {}) {
+  try {
+    const db = await getDb();
+    await db.runAsync(
+      'INSERT OR REPLACE INTO vault_meta (key, value) VALUES (?, ?)',
+      'acknowledged_alerts',
+      JSON.stringify(acknowledgedAlerts)
+    );
   } catch (e) {}
 }
 

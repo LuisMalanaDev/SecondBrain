@@ -31,6 +31,7 @@ import {
   computeEventStats,
   formatEventDateLabel,
   eventOccursOnDay,
+  getActiveAlertKeyForToday,
   hapticTap,
   hapticNotify
 } from '../utils/helpers';
@@ -69,6 +70,8 @@ const LEAD_OPTIONS = [
 
 export default function CalendarSection({
   events = [],
+  acknowledgedAlerts = {},
+  onAcknowledgeAlert,
   onSaveEvent,
   onDeleteEvent,
   notificationsEnabled = true,
@@ -199,14 +202,27 @@ export default function CalendarSection({
   // Compute stats for all events & sort upcoming soonest first
   const enrichedEvents = useMemo(() => {
     return events
-      .map((ev) => ({ ...ev, stats: computeEventStats(ev, now) }))
+      .map((ev) => {
+        const stats = computeEventStats(ev, now);
+        const activeAckKey = getActiveAlertKeyForToday(ev, now);
+        const isAlarmActive = Boolean(
+          notificationsEnabled && activeAckKey && !acknowledgedAlerts[activeAckKey]
+        );
+        const isSeenToday = Boolean(activeAckKey && acknowledgedAlerts[activeAckKey]);
+        return { ...ev, stats, activeAckKey, isAlarmActive, isSeenToday };
+      })
       .sort((a, b) => {
         const da = a.stats.daysUntil ?? 99999;
         const db = b.stats.daysUntil ?? 99999;
         if (da !== db) return da - db;
         return (a.title || '').localeCompare(b.title || '');
       });
-  }, [events]);
+  }, [events, acknowledgedAlerts, notificationsEnabled]);
+
+  const unackedTodayEvents = useMemo(
+    () => enrichedEvents.filter((e) => e.isAlarmActive),
+    [enrichedEvents]
+  );
 
   const upcomingBannerEvents = useMemo(
     () => enrichedEvents.filter((e) => e.stats.daysUntil !== null && e.stats.daysUntil <= 7),
@@ -410,7 +426,7 @@ export default function CalendarSection({
           </TouchableOpacity>
         </View>
 
-        {/* Coming Soon Alert Card */}
+        {/* Coming Soon Alert Card + Stop Hourly Alarm Control */}
         {upcomingBannerEvents.length > 0 && (
           <View style={styles.alertBanner}>
             <View style={styles.alertLeft}>
@@ -423,12 +439,31 @@ export default function CalendarSection({
                 </Text>
                 <Text style={styles.alertSub}>
                   {upcomingBannerEvents[0].stats.primaryHeadline}
-                  {upcomingBannerEvents.length > 1
+                  {unackedTodayEvents.length > 0
+                    ? ' · Repeats every hour until stopped'
+                    : upcomingBannerEvents.length > 1
                     ? ` · +${upcomingBannerEvents.length - 1} more this week`
                     : ''}
                 </Text>
               </View>
             </View>
+            {unackedTodayEvents.length > 0 && (
+              <TouchableOpacity
+                style={styles.stopAlarmBtn}
+                onPress={() => {
+                  hapticTap('medium');
+                  onAcknowledgeAlert?.(
+                    unackedTodayEvents.map((e) => e.activeAckKey),
+                    unackedTodayEvents.length === 1 ? unackedTodayEvents[0].title : ''
+                  );
+                }}
+              >
+                <Feather name="check" size={13} color={colors.solidBtnText} />
+                <Text style={styles.stopAlarmText}>
+                  Got It — Stop Hourly Alarm ({unackedTodayEvents.length})
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -625,6 +660,20 @@ export default function CalendarSection({
                 {ev.note ? <Text style={styles.evNote}>{ev.note}</Text> : null}
 
                 <View style={styles.evActions}>
+                  {ev.isAlarmActive ? (
+                    <TouchableOpacity
+                      style={[styles.evActionBtn, styles.cardStopPill]}
+                      onPress={() => onAcknowledgeAlert?.(ev.activeAckKey, ev.title)}
+                    >
+                      <Feather name="bell-off" size={12} color={colors.solidBtnText} />
+                      <Text style={styles.cardStopText}>Stop Alarm ✓</Text>
+                    </TouchableOpacity>
+                  ) : ev.isSeenToday ? (
+                    <View style={styles.evActionBtn}>
+                      <Feather name="check-circle" size={12} color={colors.success} />
+                      <Text style={[styles.evActionText, { color: colors.success }]}>Seen ✓</Text>
+                    </View>
+                  ) : null}
                   <TouchableOpacity style={styles.evActionBtn} onPress={() => handleShareEvent(ev)}>
                     <Feather name="share-2" size={12} color={colors.textSecondary} />
                     <Text style={styles.evActionText}>Share</Text>
@@ -944,6 +993,24 @@ const makeStyles = (colors) =>
     alertLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     alertTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
     alertSub: { color: colors.textSecondary, fontSize: 11.5, marginTop: 2 },
+    stopAlarmBtn: {
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.solidBtnBg,
+      paddingVertical: 9,
+      borderRadius: 9
+    },
+    stopAlarmText: { color: colors.solidBtnText, fontSize: 12, fontWeight: '800' },
+    cardStopPill: {
+      backgroundColor: colors.solidBtnBg,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: 7
+    },
+    cardStopText: { color: colors.solidBtnText, fontSize: 11, fontWeight: '800' },
     calendarCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,

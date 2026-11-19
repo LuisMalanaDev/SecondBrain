@@ -1,6 +1,6 @@
 // ============================================================================
 // src/utils/eventNotifications.js
-// Local Scheduled Notifications & Sound/Vibration Alerts for Calendar Events
+// Local Scheduled Notifications + Hourly Escalation Until Seen in App
 // ============================================================================
 
 import { Platform } from 'react-native';
@@ -80,11 +80,10 @@ export async function sendTestReminderNotification() {
       };
     }
 
-    // Present an immediate notification in the status bar/shade right away
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'SecondBrain Calendar Alert',
-        body: 'Sound & notification alerts are active for your Birthdays, Monthsaries & Anniversaries!',
+        body: 'Sound & hourly reminder alerts are active for your Birthdays, Monthsaries & Anniversaries!',
         sound: 'default',
         vibrate: [0, 280, 140, 280]
       },
@@ -97,6 +96,12 @@ export async function sendTestReminderNotification() {
   }
 }
 
+export async function dismissTrayNotifications() {
+  try {
+    await Notifications.dismissAllNotificationsAsync();
+  } catch (e) {}
+}
+
 export async function getScheduledEventAlertsSummary() {
   try {
     const list = await Notifications.getAllScheduledNotificationsAsync();
@@ -106,7 +111,11 @@ export async function getScheduledEventAlertsSummary() {
   }
 }
 
-export async function syncEventNotifications(events = [], notificationsEnabled = true) {
+export async function syncEventNotifications(
+  events = [],
+  notificationsEnabled = true,
+  acknowledgedAlerts = {}
+) {
   try {
     configureNotifications();
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -122,13 +131,18 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
 
     const now = new Date();
     const todayKey = toLocalDateKey(now);
+    const MAX_SLOTS = 48;
     let scheduledCount = 0;
     let immediateFired = 0;
 
-    for (const ev of events) {
-      if (!ev || ev.notifyLeadDays === -1) continue;
-      const stats = computeEventStats(ev, now);
-      if (!stats.nextDate) continue;
+    // Sort soonest events first so near-term hourly reminders get priority slots
+    const sorted = [...events]
+      .map((ev) => ({ ev, stats: computeEventStats(ev, now) }))
+      .filter((x) => x.ev && x.ev.notifyLeadDays !== -1 && x.stats.nextDate)
+      .sort((a, b) => (a.stats.daysUntil ?? 99999) - (b.stats.daysUntil ?? 99999));
+
+    for (const { ev, stats } of sorted) {
+      if (scheduledCount >= MAX_SLOTS) break;
 
       const leadDays = Number.isFinite(Number(ev.notifyLeadDays))
         ? Number(ev.notifyLeadDays)
@@ -146,9 +160,15 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
           ? 'Monthsary'
           : 'Reminder';
 
+      const monthsaryMilestone =
+        ev.type === 'MONTHSARY' && stats.secondaryDetail?.includes('Monthsary')
+          ? stats.secondaryDetail.split('•')[0].replace('Next:', '').trim()
+          : null;
+
       for (const offset of offsets) {
-        if (scheduledCount >= 48) break;
-        const fireAt = new Date(
+        if (scheduledCount >= MAX_SLOTS) break;
+
+        const baseFire = new Date(
           stats.nextDate.getFullYear(),
           stats.nextDate.getMonth(),
           stats.nextDate.getDate() - offset,
@@ -156,62 +176,96 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
           minute,
           0
         );
+        const fireKey = toLocalDateKey(baseFire);
+        const ackKey = `${ev.id}|${fireKey}`;
+
+        // If the user already acknowledged/stopped this day's alarm inside the app, skip all alerts for it!
+        if (acknowledgedAlerts && acknowledgedAlerts[ackKey]) {
+          continue;
+        }
 
         const prefix =
           offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : `In ${offset} days`;
 
-        const monthsaryMilestone =
-          ev.type === 'MONTHSARY' && stats.secondaryDetail?.includes('Monthsary')
-            ? stats.secondaryDetail.split('•')[0].replace('Next:', '').trim()
-            : null;
-
-        const body =
+        const coreDesc =
           ev.type === 'MONTHSARY' && monthsaryMilestone
             ? `${prefix} (${dateStr}): ${ev.title} — ${monthsaryMilestone}!`
             : ev.type === 'BIRTHDAY' || ev.type === 'ANNIVERSARY' || ev.type === 'MONTHSARY'
             ? `${prefix} (${dateStr}): ${ev.title} — ${stats.primaryHeadline || typeLabel}`
             : `${prefix} (${dateStr}): ${ev.title}`;
 
-        const fireKey = toLocalDateKey(fireAt);
+        const daysFromNow = Math.round(
+          (new Date(baseFire.getFullYear(), baseFire.getMonth(), baseFire.getDate()).getTime() -
+            new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
 
-        // If the alert date IS TODAY and the selected clock time already passed today,
-        // fire an immediate reminder once today instead of silently skipping!
-        if (fireKey === todayKey && fireAt.getTime() <= now.getTime() + 5000) {
+        // If today's alert time has already passed & hasn't been acknowledged yet, fire immediate alert once
+        let hourlyStart = new Date(baseFire.getTime());
+        if (fireKey === todayKey && baseFire.getTime() <= now.getTime() + 5000) {
           const dedupeKey = `${ev.id}|${offset}|${todayKey}`;
           if (!notifiedTodayKeys.has(dedupeKey)) {
             notifiedTodayKeys.add(dedupeKey);
             await Notifications.scheduleNotificationAsync({
               content: {
                 title: `${typeLabel}: ${ev.title}`,
-                body,
+                body: `${coreDesc} (Tap to open app & stop hourly alarm)`,
                 sound: 'default',
                 vibrate: [0, 280, 140, 280],
-                data: { eventId: ev.id, section: 'CALENDAR' }
+                data: { eventId: ev.id, ackKey, section: 'CALENDAR' }
               },
               trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null
             });
             immediateFired++;
           }
-          continue;
+          // Next hourly nudge = 1 hour from right now!
+          hourlyStart = new Date(now.getTime() + 60 * 60 * 1000);
         }
 
-        if (fireAt.getTime() <= now.getTime() + 5000) continue;
+        if (hourlyStart.getTime() <= now.getTime() + 5000) {
+          hourlyStart = new Date(now.getTime() + 60 * 60 * 1000);
+        }
 
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: `${typeLabel}: ${ev.title}`,
-            body,
-            sound: 'default',
-            vibrate: [0, 280, 140, 280],
-            data: { eventId: ev.id, section: 'CALENDAR' }
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: fireAt,
-            ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {})
-          }
-        });
-        scheduledCount++;
+        // Schedule hourly follow-ups (up to 7 hourly repeats until 10:30 PM on that day)
+        // for any unacknowledged occurrence landing within the next 3 days!
+        const endOfFireDay = new Date(
+          baseFire.getFullYear(),
+          baseFire.getMonth(),
+          baseFire.getDate(),
+          22,
+          30,
+          0
+        );
+        const maxHourly = daysFromNow >= 0 && daysFromNow <= 3 ? 7 : 1;
+
+        for (let h = 0; h < maxHourly; h++) {
+          if (scheduledCount >= MAX_SLOTS) break;
+          const slotDate = new Date(hourlyStart.getTime() + h * 60 * 60 * 1000);
+          if (slotDate.getTime() <= now.getTime() + 5000) continue;
+          if (h > 0 && slotDate.getTime() > endOfFireDay.getTime()) break;
+
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title:
+                h === 0
+                  ? `${typeLabel}: ${ev.title}`
+                  : `Hourly Reminder: ${ev.title}`,
+              body:
+                h === 0
+                  ? `${coreDesc} (Repeats hourly until tapped)`
+                  : `${coreDesc} — Open SecondBrain & tap to stop alarm`,
+              sound: 'default',
+              vibrate: [0, 280, 140, 280],
+              data: { eventId: ev.id, ackKey, section: 'CALENDAR' }
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: slotDate,
+              ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {})
+            }
+          });
+          scheduledCount++;
+        }
       }
     }
 

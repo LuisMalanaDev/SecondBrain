@@ -21,6 +21,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import * as Notifications from 'expo-notifications';
 
 import { ThemeProvider, useTheme, VAULT_SECTIONS } from './src/theme/colors';
 import {
@@ -36,6 +37,7 @@ import {
   deleteVaultEventById,
   replaceAllVaultEvents,
   clearAllVaultEvents,
+  saveAcknowledgedAlerts,
   deleteMediaFile,
   clearAllMediaFiles,
   saveVaultPin,
@@ -46,13 +48,15 @@ import {
   computeStats,
   computeExpenseStats,
   computeEventStats,
+  getActiveAlertKeyForToday,
   formatShareText,
   hapticTap,
   hapticNotify
 } from './src/utils/helpers';
 import {
   configureNotifications,
-  syncEventNotifications
+  syncEventNotifications,
+  dismissTrayNotifications
 } from './src/utils/eventNotifications';
 
 import SectionDropdown from './src/components/SectionDropdown';
@@ -70,6 +74,7 @@ export default function App() {
   const [items, setItems] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [events, setEvents] = useState([]);
+  const [acknowledgedAlerts, setAcknowledgedAlerts] = useState({});
   const [pinCode, setPinCode] = useState(null);
   const [settings, setSettings] = useState({
     lockOnAppOpen: false,
@@ -92,6 +97,7 @@ export default function App() {
       setItems(cleanItems);
       setExpenses(state.expenses || []);
       setEvents(state.events || []);
+      setAcknowledgedAlerts(state.acknowledgedAlerts || {});
       setPinCode(state.pinCode);
       setSettings(state.settings);
 
@@ -112,6 +118,8 @@ export default function App() {
           setExpenses={setExpenses}
           events={events}
           setEvents={setEvents}
+          acknowledgedAlerts={acknowledgedAlerts}
+          setAcknowledgedAlerts={setAcknowledgedAlerts}
           pinCode={pinCode}
           setPinCode={setPinCode}
           settings={settings}
@@ -132,6 +140,8 @@ function AppShell({
   setExpenses,
   events,
   setEvents,
+  acknowledgedAlerts,
+  setAcknowledgedAlerts,
   pinCode,
   setPinCode,
   settings,
@@ -355,11 +365,59 @@ function AppShell({
     showToast('Expenses reset');
   }, [setExpenses, showToast]);
 
-  // Keep OS notifications synced whenever events or alert setting changes
+  // Keep OS notifications & hourly repeats synced whenever events, alerts, or ack state changes
   useEffect(() => {
     if (!isLoaded) return;
-    syncEventNotifications(events, settings.notificationsEnabled !== false);
-  }, [isLoaded, events, settings.notificationsEnabled]);
+    syncEventNotifications(
+      events,
+      settings.notificationsEnabled !== false,
+      acknowledgedAlerts
+    );
+  }, [isLoaded, events, settings.notificationsEnabled, acknowledgedAlerts]);
+
+  const handleAcknowledgeAlert = useCallback(
+    async (ackKeyOrList, eventTitle = '') => {
+      const keys = Array.isArray(ackKeyOrList) ? ackKeyOrList : [ackKeyOrList];
+      const valid = keys.filter(Boolean);
+      if (valid.length === 0) return;
+
+      const nextMap = { ...acknowledgedAlerts };
+      valid.forEach((k) => {
+        nextMap[k] = true;
+      });
+      setAcknowledgedAlerts(nextMap);
+      await saveAcknowledgedAlerts(nextMap);
+      await dismissTrayNotifications();
+      hapticNotify('success');
+      showToast(
+        eventTitle
+          ? `Alarm stopped for "${eventTitle}"`
+          : 'Hourly reminder alarm stopped'
+      );
+    },
+    [acknowledgedAlerts, setAcknowledgedAlerts, showToast]
+  );
+
+  // Stop hourly alarm automatically when user taps the OS notification to open the app
+  const lastNotifResponse = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!isLoaded || !lastNotifResponse) return;
+    const data = lastNotifResponse?.notification?.request?.content?.data;
+    if (data?.section === 'CALENDAR') {
+      setActiveSection('CALENDAR');
+      const keysToStop = [];
+      if (data.ackKey) keysToStop.push(data.ackKey);
+      if (data.eventId) {
+        const matchedEv = events.find((e) => e.id === data.eventId);
+        const todayAck = matchedEv ? getActiveAlertKeyForToday(matchedEv) : null;
+        if (todayAck) keysToStop.push(todayAck);
+        if (keysToStop.length > 0) {
+          handleAcknowledgeAlert(keysToStop, matchedEv?.title || '');
+        }
+      }
+      Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
+    }
+  }, [isLoaded, lastNotifResponse, events, handleAcknowledgeAlert]);
 
   // Startup chime/alert if an event is Today or Tomorrow
   const startupAlertShownRef = useRef(false);
@@ -391,9 +449,19 @@ function AppShell({
         return [savedEv, ...prev];
       });
       await upsertVaultEvent(savedEv);
+      // Reset any prior today acknowledgement on save so updated times/dates alert cleanly
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const localKey = `${savedEv.id}|${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+      if (acknowledgedAlerts[localKey] || acknowledgedAlerts[`${savedEv.id}|${todayKey}`]) {
+        const nextAck = { ...acknowledgedAlerts };
+        delete nextAck[localKey];
+        delete nextAck[`${savedEv.id}|${todayKey}`];
+        setAcknowledgedAlerts(nextAck);
+        await saveAcknowledgedAlerts(nextAck);
+      }
       showToast(`Saved "${savedEv.title}"`);
     },
-    [setEvents, showToast]
+    [setEvents, acknowledgedAlerts, showToast]
   );
 
   const handleDeleteEvent = useCallback(
@@ -706,6 +774,8 @@ function AppShell({
           items={items}
           expenses={expenses}
           events={events}
+          acknowledgedAlerts={acknowledgedAlerts}
+          onAcknowledgeAlert={handleAcknowledgeAlert}
           stats={stats}
           expenseStats={expenseStats}
           hasPin={Boolean(pinCode)}
@@ -750,6 +820,8 @@ function AppShell({
       {activeSection === 'CALENDAR' && (
         <CalendarSection
           events={events}
+          acknowledgedAlerts={acknowledgedAlerts}
+          onAcknowledgeAlert={handleAcknowledgeAlert}
           onSaveEvent={handleSaveEvent}
           onDeleteEvent={handleDeleteEvent}
           notificationsEnabled={settings.notificationsEnabled !== false}

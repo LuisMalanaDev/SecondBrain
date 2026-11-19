@@ -515,3 +515,16 @@ export function eventOccursOnDay(event, year, month1To12, day) {
   }
   return ey === year && day === clamped;
 }
+
+export function getActiveAlertKeyForToday(event, refDate = new Date()) {
+  if (!event || event.notifyLeadDays === -1) return null;
+  const st = computeEventStats(event, refDate);
+  if (st.daysUntil === null) return null;
+  const lead = Number.isFinite(Number(event.notifyLeadDays))
+    ? Number(event.notifyLeadDays)
+    : 1;
+  if (st.daysUntil === 0 || (lead > 0 && st.daysUntil === lead)) {
+    return `${event.id}|${toLocalDateKey(refDate)}`;
+  }
+  return null;
+}

@@ -20,6 +20,7 @@ import {
   filterItems,
   computeEventStats,
   formatEventDateLabel,
+  getActiveAlertKeyForToday,
   hapticTap
 } from '../utils/helpers';
 import VaultItemCard from './VaultItemCard';
@@ -94,6 +95,8 @@ export default function HomeSection({
   items = [],
   expenses = [],
   events = [],
+  acknowledgedAlerts = {},
+  onAcknowledgeAlert,
   stats,
   expenseStats,
   hasPin,
@@ -320,29 +323,55 @@ export default function HomeSection({
               </Text>
             </View>
 
-            {upcomingEvents.length > 0 && (
-              <TouchableOpacity
-                style={[styles.snapshotCard, { marginBottom: 14, borderColor: colors.warning }]}
-                onPress={() => {
-                  hapticTap('light');
-                  onSelectSection('CALENDAR');
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.snapshotLabel, { color: colors.warning }]}>
-                  UPCOMING MILESTONE ({upcomingEvents[0].evStats.countdownLabel})
-                </Text>
-                <Text style={styles.snapshotValue} numberOfLines={1}>
-                  {upcomingEvents[0].title}
-                </Text>
-                <Text style={styles.snapshotHint}>
-                  {upcomingEvents[0].evStats.primaryHeadline}
-                  {upcomingEvents.length > 1
-                    ? ` · +${upcomingEvents.length - 1} more soon ›`
-                    : ' · Open Calendar ›'}
-                </Text>
-              </TouchableOpacity>
-            )}
+            {upcomingEvents.length > 0 && (() => {
+              const first = upcomingEvents[0];
+              const ackKey = getActiveAlertKeyForToday(first);
+              const isAlarmActive = Boolean(ackKey && !acknowledgedAlerts[ackKey]);
+              return (
+                <TouchableOpacity
+                  style={[styles.snapshotCard, { marginBottom: 14, borderColor: colors.warning }]}
+                  onPress={() => {
+                    hapticTap('light');
+                    onSelectSection('CALENDAR');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.snapshotLabel, { color: colors.warning }]}>
+                    UPCOMING MILESTONE ({first.evStats.countdownLabel})
+                  </Text>
+                  <Text style={styles.snapshotValue} numberOfLines={1}>
+                    {first.title}
+                  </Text>
+                  <Text style={styles.snapshotHint}>
+                    {first.evStats.primaryHeadline}
+                    {isAlarmActive
+                      ? ' · Hourly alarm active'
+                      : upcomingEvents.length > 1
+                      ? ` · +${upcomingEvents.length - 1} more soon ›`
+                      : ' · Open Calendar ›'}
+                  </Text>
+                  {isAlarmActive && onAcknowledgeAlert && (
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 10,
+                        backgroundColor: colors.solidBtnBg,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        alignItems: 'center'
+                      }}
+                      onPress={() => {
+                        hapticTap('medium');
+                        onAcknowledgeAlert(ackKey, first.title);
+                      }}
+                    >
+                      <Text style={{ color: colors.solidBtnText, fontSize: 12, fontWeight: '800' }}>
+                        Got It — Stop Hourly Alarm ✓
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+              );
+            })()}
 
             <View style={styles.snapshotRow}>
               <TouchableOpacity
