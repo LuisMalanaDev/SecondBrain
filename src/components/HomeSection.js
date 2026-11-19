@@ -18,11 +18,20 @@ import {
   formatPeso,
   formatDate,
   filterItems,
+  computeEventStats,
+  formatEventDateLabel,
   hapticTap
 } from '../utils/helpers';
 import VaultItemCard from './VaultItemCard';
 
 const FEATURE_GUIDE = [
+  {
+    id: 'CALENDAR',
+    title: 'Calendar & Milestones',
+    icon: 'calendar',
+    summary:
+      'Save birthdays, monthsaries (e.g. every 28th), anniversaries, and important dates with live age/duration tracking and reminder alerts.'
+  },
   {
     id: 'EXPENSES',
     title: 'Expenses & Cash',
@@ -84,6 +93,7 @@ const FEATURE_GUIDE = [
 export default function HomeSection({
   items = [],
   expenses = [],
+  events = [],
   stats,
   expenseStats,
   hasPin,
@@ -118,7 +128,24 @@ export default function HomeSection({
     });
   }, [expenses, globalQuery]);
 
+  const matchingEvents = useMemo(() => {
+    const q = globalQuery.trim().toLowerCase();
+    if (!q) return [];
+    return events.filter((ev) => {
+      const hay = `${ev.title} ${ev.type} ${ev.note || ''} ${formatEventDateLabel(ev)}`.toLowerCase();
+      return q.split(/\s+/).every((w) => hay.includes(w));
+    });
+  }, [events, globalQuery]);
+
+  const upcomingEvents = useMemo(() => {
+    return events
+      .map((ev) => ({ ...ev, evStats: computeEventStats(ev) }))
+      .filter((ev) => ev.evStats.daysUntil !== null && ev.evStats.daysUntil <= 7)
+      .sort((a, b) => a.evStats.daysUntil - b.evStats.daysUntil);
+  }, [events]);
+
   function getCountLabel(id) {
+    if (id === 'CALENDAR') return `${events.length || 0}`;
     if (id === 'EXPENSES') return formatPeso(expenseStats.balance);
     if (id === 'ANALYTICS') return formatPeso(expenseStats.totalSpent);
     if (id === 'NOTE') return `${stats.notes || 0}`;
@@ -169,23 +196,54 @@ export default function HomeSection({
           <>
             <View style={styles.resultsHeader}>
               <Text style={styles.sectionHeading}>
-                GLOBAL RESULTS ({matchingItems.length + matchingExpenses.length})
+                GLOBAL RESULTS ({matchingItems.length + matchingExpenses.length + matchingEvents.length})
               </Text>
               <TouchableOpacity onPress={() => setGlobalQuery('')}>
                 <Text style={styles.clearLink}>Clear</Text>
               </TouchableOpacity>
             </View>
 
-            {matchingItems.length === 0 && matchingExpenses.length === 0 ? (
+            {matchingItems.length === 0 &&
+            matchingExpenses.length === 0 &&
+            matchingEvents.length === 0 ? (
               <View style={styles.noResultsBox}>
                 <Feather name="search" size={22} color={colors.textMuted} />
                 <Text style={styles.noResultsTitle}>Nothing matched "{globalQuery}"</Text>
                 <Text style={styles.noResultsSub}>
-                  Try another keyword across your notes, links, tasks, passwords, or expenses.
+                  Try another keyword across your notes, links, tasks, passwords, calendar, or expenses.
                 </Text>
               </View>
             ) : (
               <>
+                {matchingEvents.length > 0 && (
+                  <View style={{ marginBottom: 8 }}>
+                    <Text style={styles.sectionHeading}>MATCHING CALENDAR DATES</Text>
+                    {matchingEvents.map((ev) => {
+                      const st = computeEventStats(ev);
+                      return (
+                        <TouchableOpacity
+                          key={ev.id}
+                          style={styles.expResultRow}
+                          onPress={() => onSelectSection('CALENDAR')}
+                          activeOpacity={0.75}
+                        >
+                          <View style={styles.expIconBox}>
+                            <Feather name="calendar" size={14} color={colors.textSecondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.expTitle}>{ev.title}</Text>
+                            <Text style={styles.expMeta}>
+                              {formatEventDateLabel(ev)} • {st.primaryHeadline}
+                            </Text>
+                          </View>
+                          {st.countdownLabel ? (
+                            <Text style={styles.expAmount}>{st.countdownLabel}</Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
                 {matchingItems.map((item) => (
                   <VaultItemCard
                     key={item.id}
@@ -261,6 +319,30 @@ export default function HomeSection({
                 in local device storage with zero cloud tracking.
               </Text>
             </View>
+
+            {upcomingEvents.length > 0 && (
+              <TouchableOpacity
+                style={[styles.snapshotCard, { marginBottom: 14, borderColor: colors.warning }]}
+                onPress={() => {
+                  hapticTap('light');
+                  onSelectSection('CALENDAR');
+                }}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.snapshotLabel, { color: colors.warning }]}>
+                  UPCOMING MILESTONE ({upcomingEvents[0].evStats.countdownLabel})
+                </Text>
+                <Text style={styles.snapshotValue} numberOfLines={1}>
+                  {upcomingEvents[0].title}
+                </Text>
+                <Text style={styles.snapshotHint}>
+                  {upcomingEvents[0].evStats.primaryHeadline}
+                  {upcomingEvents.length > 1
+                    ? ` · +${upcomingEvents.length - 1} more soon ›`
+                    : ' · Open Calendar ›'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.snapshotRow}>
               <TouchableOpacity

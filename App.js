@@ -33,6 +33,10 @@ import {
   deleteExpenseEntryById,
   replaceAllExpenses,
   clearAllExpenses,
+  upsertVaultEvent,
+  deleteVaultEventById,
+  replaceAllVaultEvents,
+  clearAllVaultEvents,
   deleteMediaFile,
   clearAllMediaFiles,
   saveVaultPin,
@@ -42,14 +46,21 @@ import {
   filterItems,
   computeStats,
   computeExpenseStats,
+  computeEventStats,
   formatShareText,
-  hapticTap
+  hapticTap,
+  hapticNotify
 } from './src/utils/helpers';
+import {
+  configureNotifications,
+  syncEventNotifications
+} from './src/utils/eventNotifications';
 
 import SectionDropdown from './src/components/SectionDropdown';
 import HomeSection from './src/components/HomeSection';
 import ExpensesSection from './src/components/ExpensesSection';
 import AnalyticsSection from './src/components/AnalyticsSection';
+import CalendarSection from './src/components/CalendarSection';
 import VaultItemCard from './src/components/VaultItemCard';
 import QuickCaptureModal from './src/components/QuickCaptureModal';
 import PinLockModal from './src/components/PinLockModal';
@@ -59,18 +70,21 @@ import ItemDetailModal from './src/components/ItemDetailModal';
 export default function App() {
   const [items, setItems] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [events, setEvents] = useState([]);
   const [pinCode, setPinCode] = useState(null);
   const [settings, setSettings] = useState({
     lockOnAppOpen: false,
     biometricEnabled: false,
     autoLockOnBackground: true,
     autoClearClipboard: true,
+    notificationsEnabled: true,
     themeMode: 'dark'
   });
   const [isLoaded, setIsLoaded] = useState(false);
   const [isAppLocked, setIsAppLocked] = useState(false);
 
   useEffect(() => {
+    configureNotifications();
     (async () => {
       const state = await loadVaultState();
       const cleanItems = (state.items || []).filter(
@@ -78,6 +92,7 @@ export default function App() {
       );
       setItems(cleanItems);
       setExpenses(state.expenses || []);
+      setEvents(state.events || []);
       setPinCode(state.pinCode);
       setSettings(state.settings);
 
@@ -95,6 +110,8 @@ export default function App() {
         setItems={setItems}
         expenses={expenses}
         setExpenses={setExpenses}
+        events={events}
+        setEvents={setEvents}
         pinCode={pinCode}
         setPinCode={setPinCode}
         settings={settings}
@@ -112,6 +129,8 @@ function AppShell({
   setItems,
   expenses,
   setExpenses,
+  events,
+  setEvents,
   pinCode,
   setPinCode,
   settings,
@@ -129,6 +148,7 @@ function AppShell({
   const [activeSection, setActiveSection] = useState('HOME');
   const [searchQuery, setSearchQuery] = useState('');
   const [expenseModalTrigger, setExpenseModalTrigger] = useState(null);
+  const [calendarModalTrigger, setCalendarModalTrigger] = useState(null);
 
   const [captureVisible, setCaptureVisible] = useState(false);
   const [captureItem, setCaptureItem] = useState(null);
@@ -334,6 +354,66 @@ function AppShell({
     showToast('Expenses reset');
   }, [setExpenses, showToast]);
 
+  // Keep OS notifications synced whenever events or alert setting changes
+  useEffect(() => {
+    if (!isLoaded) return;
+    syncEventNotifications(events, settings.notificationsEnabled !== false);
+  }, [isLoaded, events, settings.notificationsEnabled]);
+
+  // Startup chime/alert if an event is Today or Tomorrow
+  const startupAlertShownRef = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || startupAlertShownRef.current || events.length === 0) return;
+    startupAlertShownRef.current = true;
+    const dueNow = events
+      .map((ev) => ({ ev, st: computeEventStats(ev) }))
+      .filter((x) => x.st.daysUntil === 0 || x.st.daysUntil === 1)
+      .sort((a, b) => a.st.daysUntil - b.st.daysUntil);
+    if (dueNow.length > 0 && settings.notificationsEnabled !== false) {
+      hapticNotify('success');
+      const first = dueNow[0];
+      showToast(
+        `${first.st.daysUntil === 0 ? 'Today' : 'Tomorrow'}: ${first.ev.title}!`
+      );
+    }
+  }, [isLoaded, events, settings.notificationsEnabled, showToast]);
+
+  const handleSaveEvent = useCallback(
+    async (savedEv) => {
+      setEvents((prev) => {
+        const idx = prev.findIndex((x) => x.id === savedEv.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = savedEv;
+          return next;
+        }
+        return [savedEv, ...prev];
+      });
+      await upsertVaultEvent(savedEv);
+      showToast(`Saved "${savedEv.title}"`);
+    },
+    [setEvents, showToast]
+  );
+
+  const handleDeleteEvent = useCallback(
+    async (id) => {
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+      await deleteVaultEventById(id);
+      showToast('Calendar date removed');
+    },
+    [setEvents, showToast]
+  );
+
+  const handleToggleNotifications = useCallback(
+    async (enabled) => {
+      const next = { ...settings, notificationsEnabled: enabled };
+      setSettings(next);
+      await saveVaultSettings(next);
+      showToast(enabled ? 'Calendar alerts enabled' : 'Calendar alerts muted');
+    },
+    [settings, setSettings, showToast]
+  );
+
   const handleCopy = useCallback(
     async (text, label = 'Copied', isSecret = false) => {
       if (!text) return;
@@ -464,22 +544,32 @@ function AppShell({
     await saveVaultSettings(nextSettings);
   };
 
-  const handleRestoreBackup = async (restoredItems, restoredExpenses = []) => {
+  const handleRestoreBackup = async (
+    restoredItems,
+    restoredExpenses = [],
+    restoredEvents = []
+  ) => {
     setItems(restoredItems);
     await replaceAllVaultItems(restoredItems);
     if (Array.isArray(restoredExpenses)) {
       setExpenses(restoredExpenses);
       await replaceAllExpenses(restoredExpenses);
     }
+    if (Array.isArray(restoredEvents)) {
+      setEvents(restoredEvents);
+      await replaceAllVaultEvents(restoredEvents);
+    }
   };
 
   const handleClearAllItems = async () => {
     setItems([]);
     setExpenses([]);
+    setEvents([]);
     setDetailItemId(null);
     clearAllMediaFiles();
     await replaceAllVaultItems([]);
     await clearAllExpenses();
+    await clearAllVaultEvents();
   };
 
   const openQuickCapture = (type = 'NOTE') => {
@@ -501,6 +591,11 @@ function AppShell({
       setExpenseModalTrigger('EXPENSE');
       return;
     }
+    if (activeSection === 'CALENDAR') {
+      hapticTap('medium');
+      setCalendarModalTrigger('ANNIVERSARY');
+      return;
+    }
     const defaultType =
       activeSection !== 'HOME' &&
       activeSection !== 'ANALYTICS' &&
@@ -515,7 +610,8 @@ function AppShell({
   const isItemSection =
     activeSection !== 'HOME' &&
     activeSection !== 'EXPENSES' &&
-    activeSection !== 'ANALYTICS';
+    activeSection !== 'ANALYTICS' &&
+    activeSection !== 'CALENDAR';
 
   if (!isLoaded) {
     return (
@@ -594,6 +690,7 @@ function AppShell({
         onSelectSection={handleSelectSection}
         stats={stats}
         expenseBalance={expenseStats.balance}
+        eventCount={events.length}
       />
 
       {/* HOME SECTION */}
@@ -601,6 +698,7 @@ function AppShell({
         <HomeSection
           items={items}
           expenses={expenses}
+          events={events}
           stats={stats}
           expenseStats={expenseStats}
           hasPin={Boolean(pinCode)}
@@ -636,6 +734,20 @@ function AppShell({
           expenses={expenses}
           stats={stats}
           onSelectSection={handleSelectSection}
+        />
+      )}
+
+      {/* CALENDAR & MILESTONES SECTION */}
+      {activeSection === 'CALENDAR' && (
+        <CalendarSection
+          events={events}
+          onSaveEvent={handleSaveEvent}
+          onDeleteEvent={handleDeleteEvent}
+          notificationsEnabled={settings.notificationsEnabled !== false}
+          onToggleNotifications={handleToggleNotifications}
+          externalAddTrigger={calendarModalTrigger}
+          onExternalTriggerHandled={() => setCalendarModalTrigger(null)}
+          onShowToast={showToast}
         />
       )}
 
@@ -731,7 +843,11 @@ function AppShell({
         <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.85}>
           <Feather name="plus" size={16} color={colors.solidBtnText} />
           <Text style={styles.fabText}>
-            {activeSection === 'EXPENSES' ? 'Expense' : 'New'}
+            {activeSection === 'EXPENSES'
+              ? 'Expense'
+              : activeSection === 'CALENDAR'
+              ? 'Date'
+              : 'New'}
           </Text>
         </TouchableOpacity>
       )}
@@ -804,6 +920,7 @@ function AppShell({
         onRequestRemovePin={promptRemovePin}
         items={items}
         expenses={expenses}
+        events={events}
         onRestoreBackup={handleRestoreBackup}
         onClearAllItems={handleClearAllItems}
         onShowToast={showToast}

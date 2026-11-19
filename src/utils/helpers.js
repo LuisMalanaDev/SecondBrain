@@ -173,7 +173,12 @@ export function filterItems(items, { query = '', category = 'NOTE' }) {
     .filter((it) => {
       if (category === 'PINNED') {
         if (!it.isPinned) return false;
-      } else if (category !== 'HOME' && category !== 'EXPENSES' && category !== 'ANALYTICS') {
+      } else if (
+        category !== 'HOME' &&
+        category !== 'EXPENSES' &&
+        category !== 'ANALYTICS' &&
+        category !== 'CALENDAR'
+      ) {
         if (it.type !== category) return false;
       }
       if (!q) return true;
@@ -238,4 +243,269 @@ export function isValidBackup(parsed) {
     Array.isArray(parsed.items) &&
     parsed.items.every((i) => i && typeof i.id === 'string' && typeof i.type === 'string')
   );
+}
+
+// ============================================================================
+// Calendar, Milestones & Countdown Calculations
+// ============================================================================
+
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+export const MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+export function daysInMonth(year, month1To12) {
+  return new Date(year, month1To12, 0).getDate();
+}
+
+export function ordinalSuffix(n) {
+  const num = Math.abs(Math.trunc(Number(n) || 0));
+  const mod100 = num % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${num}th`;
+  const mod10 = num % 10;
+  if (mod10 === 1) return `${num}st`;
+  if (mod10 === 2) return `${num}nd`;
+  if (mod10 === 3) return `${num}rd`;
+  return `${num}th`;
+}
+
+export function diffYMD(startDate, endDate) {
+  const s = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const e = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  if (e < s) return { years: 0, months: 0, days: 0, totalDays: 0, isFuture: true };
+
+  let years = e.getFullYear() - s.getFullYear();
+  let months = e.getMonth() - s.getMonth();
+  let days = e.getDate() - s.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    const prevMonthLastDay = new Date(e.getFullYear(), e.getMonth(), 0).getDate();
+    days += prevMonthLastDay;
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const totalDays = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
+  return { years, months, days, totalDays, isFuture: false };
+}
+
+export function formatYMDParts({ years = 0, months = 0, days = 0 }, includeDays = true) {
+  const parts = [];
+  if (years > 0) parts.push(`${years} ${years === 1 ? 'year' : 'years'}`);
+  if (months > 0) parts.push(`${months} ${months === 1 ? 'month' : 'months'}`);
+  if (includeDays && (days > 0 || parts.length === 0)) {
+    parts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
+  }
+  if (parts.length === 0) return 'Today';
+  return parts.join(', ');
+}
+
+export function formatEventDateLabel(event) {
+  if (!event) return '';
+  const m = Number(event.month);
+  const d = Number(event.day);
+  const y = Number(event.year);
+
+  if (event.type === 'MONTHSARY' && (!m || !y) && d) {
+    return `Every ${ordinalSuffix(d)} of the month`;
+  }
+  if (m && d && y) {
+    return `${MONTH_SHORT[m - 1]} ${d}, ${y}`;
+  }
+  if (m && y && !d) {
+    return `${MONTH_NAMES[m - 1]} ${y}`;
+  }
+  if (m && d && !y) {
+    return `${MONTH_SHORT[m - 1]} ${d}`;
+  }
+  if (d) {
+    return `Day ${d}`;
+  }
+  return '';
+}
+
+export function getNextOccurrence(event, refDate = new Date()) {
+  if (!event) return null;
+  const today = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+  const ty = today.getFullYear();
+  const tm = today.getMonth() + 1;
+  const td = today.getDate();
+
+  const evType = event.type || 'IMPORTANT';
+  const m = Number(event.month) || null;
+  const d = Number(event.day) || null;
+  const y = Number(event.year) || null;
+
+  if (evType === 'MONTHSARY') {
+    const targetDay = d || 1;
+    const clampedThis = Math.min(targetDay, daysInMonth(ty, tm));
+    let cand = new Date(ty, tm - 1, clampedThis);
+    if (cand < today) {
+      const nextM = tm === 12 ? 1 : tm + 1;
+      const nextY = tm === 12 ? ty + 1 : ty;
+      cand = new Date(nextY, nextM - 1, Math.min(targetDay, daysInMonth(nextY, nextM)));
+    }
+    const daysUntil = Math.round((cand.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return { date: cand, daysUntil };
+  }
+
+  // Repeats yearly: Birthday, Anniversary, or Important with repeatYearly
+  const repeatsYearly =
+    evType === 'BIRTHDAY' || evType === 'ANNIVERSARY' || Boolean(event.repeatYearly);
+
+  if (repeatsYearly && m) {
+    const targetDay = d || 1;
+    let cand = new Date(ty, m - 1, Math.min(targetDay, daysInMonth(ty, m)));
+    if (cand < today) {
+      cand = new Date(ty + 1, m - 1, Math.min(targetDay, daysInMonth(ty + 1, m)));
+    }
+    const daysUntil = Math.round((cand.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return { date: cand, daysUntil };
+  }
+
+  // Non-repeating Important Date
+  if (y && m && d) {
+    const exact = new Date(y, m - 1, Math.min(d, daysInMonth(y, m)));
+    const daysUntil = Math.round((exact.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysUntil >= 0) return { date: exact, daysUntil };
+  }
+
+  return null;
+}
+
+export function computeEventStats(event, refDate = new Date()) {
+  const today = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+  const evType = event.type || 'IMPORTANT';
+  const y = Number(event.year) || null;
+  const m = Number(event.month) || null;
+  const d = Number(event.day) || null;
+
+  const next = getNextOccurrence(event, today);
+  const daysUntil = next ? next.daysUntil : null;
+
+  let countdownLabel = '';
+  if (daysUntil === 0) countdownLabel = 'Today!';
+  else if (daysUntil === 1) countdownLabel = 'Tomorrow';
+  else if (daysUntil !== null && daysUntil > 1) countdownLabel = `In ${daysUntil} days`;
+
+  let primaryHeadline = '';
+  let secondaryDetail = '';
+
+  if (evType === 'BIRTHDAY') {
+    if (y && m) {
+      const birthDay = d || 1;
+      const birthDate = new Date(y, m - 1, Math.min(birthDay, daysInMonth(y, m)));
+      if (birthDate <= today) {
+        const diff = diffYMD(birthDate, today);
+        primaryHeadline = `${formatYMDParts(diff, Boolean(d))} old`;
+        if (next) {
+          const nextAge = next.date.getFullYear() - y;
+          secondaryDetail = d
+            ? `${countdownLabel} • Turning ${nextAge} (${MONTH_SHORT[next.date.getMonth()]} ${next.date.getDate()})`
+            : `Born ${MONTH_NAMES[m - 1]} ${y} • Turning ${nextAge} this ${MONTH_NAMES[m - 1]}`;
+        }
+      } else {
+        primaryHeadline = 'Upcoming birth date';
+      }
+    } else if (m && d) {
+      primaryHeadline = `Every ${MONTH_SHORT[m - 1]} ${d}`;
+      secondaryDetail = countdownLabel;
+    }
+  } else if (evType === 'ANNIVERSARY') {
+    if (y && m) {
+      const startDay = d || 1;
+      const startDate = new Date(y, m - 1, Math.min(startDay, daysInMonth(y, m)));
+      if (startDate <= today) {
+        const diff = diffYMD(startDate, today);
+        const totalMonths = diff.years * 12 + diff.months;
+        primaryHeadline = `${formatYMDParts(diff, Boolean(d))} together`;
+        const nextYears = next ? next.date.getFullYear() - y : diff.years + 1;
+        secondaryDetail = `${diff.totalDays.toLocaleString()} days (${totalMonths} mos) • Next: ${ordinalSuffix(
+          nextYears
+        )} (${countdownLabel || formatEventDateLabel(event)})`;
+      } else {
+        primaryHeadline = countdownLabel || 'Upcoming';
+      }
+    } else if (m && d) {
+      primaryHeadline = `Every ${MONTH_SHORT[m - 1]} ${d}`;
+      secondaryDetail = countdownLabel;
+    }
+  } else if (evType === 'MONTHSARY') {
+    if (y && m) {
+      const startDay = d || 1;
+      const startDate = new Date(y, m - 1, Math.min(startDay, daysInMonth(y, m)));
+      if (startDate <= today) {
+        const diff = diffYMD(startDate, today);
+        const totalMonths = diff.years * 12 + diff.months;
+        primaryHeadline = `${totalMonths} ${totalMonths === 1 ? 'month' : 'months'}${
+          diff.days > 0 ? `, ${diff.days} ${diff.days === 1 ? 'day' : 'days'}` : ''
+        } together`;
+        secondaryDetail = `${ordinalSuffix(totalMonths + (daysUntil === 0 ? 0 : 1))} Monthsary • ${countdownLabel}`;
+      } else {
+        primaryHeadline = countdownLabel || 'Upcoming Monthsary';
+      }
+    } else {
+      primaryHeadline = `Every ${ordinalSuffix(d || 1)} of the month`;
+      secondaryDetail = countdownLabel ? `Next Monthsary: ${countdownLabel}` : '';
+    }
+  } else {
+    // IMPORTANT
+    if (y && m && d) {
+      const target = new Date(y, m - 1, Math.min(d, daysInMonth(y, m)));
+      if (target > today) {
+        const diff = diffYMD(today, target);
+        primaryHeadline = countdownLabel || `In ${diff.totalDays} days`;
+        secondaryDetail = diff.months > 0 || diff.years > 0 ? formatYMDParts(diff, true) : formatEventDateLabel(event);
+      } else if (target.getTime() === today.getTime()) {
+        primaryHeadline = 'Today!';
+        secondaryDetail = formatEventDateLabel(event);
+      } else {
+        const diff = diffYMD(target, today);
+        primaryHeadline = `${formatYMDParts(diff, true)} ago`;
+        secondaryDetail = event.repeatYearly && countdownLabel ? `Repeats yearly • ${countdownLabel}` : formatEventDateLabel(event);
+      }
+    } else if (m && d) {
+      primaryHeadline = countdownLabel || `${MONTH_SHORT[m - 1]} ${d}`;
+    }
+  }
+
+  return {
+    daysUntil,
+    nextDate: next?.date || null,
+    countdownLabel,
+    primaryHeadline,
+    secondaryDetail,
+    isDueSoon: daysUntil !== null && daysUntil <= 7
+  };
+}
+
+export function eventOccursOnDay(event, year, month1To12, day) {
+  if (!event) return false;
+  const evType = event.type || 'IMPORTANT';
+  const em = Number(event.month) || null;
+  const ed = Number(event.day) || null;
+  const ey = Number(event.year) || null;
+
+  if (evType === 'MONTHSARY') {
+    const targetDay = ed || 1;
+    const clamped = Math.min(targetDay, daysInMonth(year, month1To12));
+    if (ey && em && (year < ey || (year === ey && month1To12 < em))) return false;
+    return day === clamped;
+  }
+
+  if (!em || em !== month1To12) return false;
+  const targetDay = ed || 1;
+  const clamped = Math.min(targetDay, daysInMonth(year, month1To12));
+  if (evType === 'BIRTHDAY' || evType === 'ANNIVERSARY' || event.repeatYearly) {
+    return day === clamped;
+  }
+  return ey === year && day === clamped;
 }

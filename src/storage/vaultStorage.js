@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   biometricEnabled: false,
   autoLockOnBackground: true,
   autoClearClipboard: true,
+  notificationsEnabled: true,
   themeMode: 'dark'
 };
 
@@ -68,6 +69,21 @@ async function getDb() {
           createdAt TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_expenses_created ON vault_expenses(createdAt DESC);
+
+        CREATE TABLE IF NOT EXISTS vault_events (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          type TEXT NOT NULL,
+          month INTEGER,
+          day INTEGER,
+          year INTEGER,
+          repeatYearly INTEGER DEFAULT 1,
+          notifyLeadDays INTEGER DEFAULT 1,
+          note TEXT,
+          createdAt TEXT,
+          updatedAt TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_events_updated ON vault_events(updatedAt DESC);
 
         CREATE TABLE IF NOT EXISTS vault_meta (
           key TEXT PRIMARY KEY NOT NULL,
@@ -117,6 +133,22 @@ function rowToExpense(row) {
     title: row.title || '',
     category: row.category || '',
     createdAt: row.createdAt || ''
+  };
+}
+
+function rowToEvent(row) {
+  return {
+    id: row.id,
+    title: row.title || '',
+    type: row.type || 'IMPORTANT',
+    month: row.month != null ? Number(row.month) : null,
+    day: row.day != null ? Number(row.day) : null,
+    year: row.year != null ? Number(row.year) : null,
+    repeatYearly: Boolean(row.repeatYearly),
+    notifyLeadDays: row.notifyLeadDays != null ? Number(row.notifyLeadDays) : 1,
+    note: row.note || '',
+    createdAt: row.createdAt || '',
+    updatedAt: row.updatedAt || ''
   };
 }
 
@@ -189,15 +221,17 @@ export async function loadVaultState() {
     const db = await getDb();
     await migrateLegacyAsyncStorageIfNeeded(db);
 
-    const [rows, expenseRows, metaSettings, pinCode] = await Promise.all([
+    const [rows, expenseRows, eventRows, metaSettings, pinCode] = await Promise.all([
       db.getAllAsync('SELECT * FROM vault_items ORDER BY isPinned DESC, updatedAt DESC'),
       db.getAllAsync('SELECT * FROM vault_expenses ORDER BY createdAt DESC'),
+      db.getAllAsync('SELECT * FROM vault_events ORDER BY updatedAt DESC'),
       db.getFirstAsync('SELECT value FROM vault_meta WHERE key = ?', 'settings'),
       getPinFromSecureStore()
     ]);
 
     const items = (rows || []).map(rowToItem);
     const expenses = (expenseRows || []).map(rowToExpense);
+    const events = (eventRows || []).map(rowToEvent);
 
     let settings = { ...DEFAULT_SETTINGS };
     if (metaSettings?.value) {
@@ -206,11 +240,12 @@ export async function loadVaultState() {
       } catch (e) {}
     }
 
-    return { items, expenses, pinCode, settings };
+    return { items, expenses, events, pinCode, settings };
   } catch (e) {
     return {
       items: [],
       expenses: [],
+      events: [],
       pinCode: null,
       settings: { ...DEFAULT_SETTINGS }
     };
@@ -342,6 +377,73 @@ export async function clearAllExpenses() {
   } catch (e) {}
 }
 
+// ============================================================================
+// Calendar & Milestone Events SQLite CRUD
+// ============================================================================
+
+export async function upsertVaultEvent(ev) {
+  try {
+    const db = await getDb();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO vault_events (
+        id, title, type, month, day, year, repeatYearly, notifyLeadDays, note, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ev.id,
+      ev.title || '',
+      ev.type || 'IMPORTANT',
+      ev.month != null ? Number(ev.month) : null,
+      ev.day != null ? Number(ev.day) : null,
+      ev.year != null ? Number(ev.year) : null,
+      ev.repeatYearly ? 1 : 0,
+      ev.notifyLeadDays != null ? Number(ev.notifyLeadDays) : 1,
+      ev.note || '',
+      ev.createdAt || new Date().toISOString(),
+      ev.updatedAt || new Date().toISOString()
+    );
+  } catch (e) {}
+}
+
+export async function deleteVaultEventById(id) {
+  try {
+    const db = await getDb();
+    await db.runAsync('DELETE FROM vault_events WHERE id = ?', id);
+  } catch (e) {}
+}
+
+export async function replaceAllVaultEvents(events = []) {
+  try {
+    const db = await getDb();
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM vault_events');
+      for (const ev of events) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO vault_events (
+            id, title, type, month, day, year, repeatYearly, notifyLeadDays, note, createdAt, updatedAt
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ev.id,
+          ev.title || '',
+          ev.type || 'IMPORTANT',
+          ev.month != null ? Number(ev.month) : null,
+          ev.day != null ? Number(ev.day) : null,
+          ev.year != null ? Number(ev.year) : null,
+          ev.repeatYearly ? 1 : 0,
+          ev.notifyLeadDays != null ? Number(ev.notifyLeadDays) : 1,
+          ev.note || '',
+          ev.createdAt || new Date().toISOString(),
+          ev.updatedAt || new Date().toISOString()
+        );
+      }
+    });
+  } catch (e) {}
+}
+
+export async function clearAllVaultEvents() {
+  try {
+    const db = await getDb();
+    await db.runAsync('DELETE FROM vault_events');
+  } catch (e) {}
+}
+
 export async function saveVaultSettings(settings) {
   try {
     const db = await getDb();
@@ -411,18 +513,20 @@ export function clearAllMediaFiles() {
 // File Export / Import (JSON Backup File via Share Sheet & Document Picker)
 // ============================================================================
 
-export async function exportVaultBackupFile(items = [], expenses = []) {
+export async function exportVaultBackupFile(items = [], expenses = [], events = []) {
   const dateTag = new Date().toISOString().slice(0, 10);
   const fileName = `SecondBrainVault_${dateTag}.json`;
   const payload = JSON.stringify(
     {
       app: 'SecondBrainVault',
-      version: 3,
+      version: 4,
       exportedAt: new Date().toISOString(),
       itemCount: items.length,
       expenseCount: expenses.length,
+      eventCount: events.length,
       items,
-      expenses
+      expenses,
+      events
     },
     null,
     2

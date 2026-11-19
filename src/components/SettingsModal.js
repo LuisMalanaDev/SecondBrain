@@ -35,6 +35,7 @@ export default function SettingsModal({
   onRequestRemovePin,
   items = [],
   expenses = [],
+  events = [],
   onRestoreBackup,
   onClearAllItems,
   onShowToast
@@ -91,7 +92,7 @@ export default function SettingsModal({
   async function handleExportFile() {
     hapticTap('medium');
     try {
-      await exportVaultBackupFile(items, expenses);
+      await exportVaultBackupFile(items, expenses, events);
       onShowToast && onShowToast('Backup file ready');
     } catch (e) {
       Alert.alert('Export Error', e?.message || 'Could not share backup file.');
@@ -115,12 +116,14 @@ export default function SettingsModal({
       const payload = JSON.stringify(
         {
           app: 'SecondBrainVault',
-          version: 3,
+          version: 4,
           exportedAt: new Date().toISOString(),
           itemCount: items.length,
           expenseCount: expenses.length,
+          eventCount: events.length,
           items,
-          expenses
+          expenses,
+          events
         },
         null,
         2
@@ -142,18 +145,19 @@ export default function SettingsModal({
       }
       const cleanItems = parsed.items.filter((i) => i.type !== 'SNIPPET');
       const restoredExpenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
+      const restoredEvents = Array.isArray(parsed.events) ? parsed.events : [];
       Alert.alert(
         'Confirm Restore',
         `Found ${cleanItems.length} vault items${
-          restoredExpenses.length ? ` and ${restoredExpenses.length} expense records` : ''
-        }. Replace current data?`,
+          restoredExpenses.length ? `, ${restoredExpenses.length} expenses` : ''
+        }${restoredEvents.length ? `, and ${restoredEvents.length} calendar dates` : ''}. Replace current data?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Restore',
             style: 'destructive',
             onPress: () => {
-              onRestoreBackup && onRestoreBackup(cleanItems, restoredExpenses);
+              onRestoreBackup && onRestoreBackup(cleanItems, restoredExpenses, restoredEvents);
               setShowPasteImport(false);
               setImportText('');
               setImportError('');

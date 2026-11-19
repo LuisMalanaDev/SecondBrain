@@ -20,7 +20,8 @@ export default function SectionDropdown({
   activeSection,
   onSelectSection,
   stats,
-  expenseBalance = 0
+  expenseBalance = 0,
+  eventCount = 0
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -32,6 +33,7 @@ export default function SectionDropdown({
   function getRightBadge(sectionId) {
     if (sectionId === 'HOME' || sectionId === 'ANALYTICS') return null;
     if (sectionId === 'EXPENSES') return formatPeso(expenseBalance);
+    if (sectionId === 'CALENDAR') return String(eventCount || 0);
     if (sectionId === 'NOTE') return String(stats.notes || 0);
     if (sectionId === 'VOICE') return String(stats.voiceMemos || 0);
     if (sectionId === 'PASSWORD') return String(stats.passwords || 0);
