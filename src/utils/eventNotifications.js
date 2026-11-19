@@ -32,25 +32,31 @@ export async function ensureNotificationChannelAndPermission(requestPrompt = fal
     configureNotifications();
 
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-        name: 'Calendar & Milestones',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 280, 140, 280],
-        enableVibrate: true,
-        sound: 'default'
-      });
+      try {
+        await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+          name: 'Calendar & Milestones',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 280, 140, 280],
+          enableVibrate: true,
+          sound: 'default'
+        });
+      } catch (chanErr) {}
     }
 
     const current = await Notifications.getPermissionsAsync();
-    if (current.status === 'granted') {
-      return { granted: true, status: current.status };
+    if (current.granted || current.status === 'granted') {
+      return { granted: true, status: current.status || 'granted' };
     }
     if (!requestPrompt) {
-      return { granted: false, status: current.status };
+      return { granted: false, status: current.status, canAskAgain: current.canAskAgain };
     }
 
     const req = await Notifications.requestPermissionsAsync();
-    return { granted: req.status === 'granted', status: req.status };
+    return {
+      granted: Boolean(req.granted || req.status === 'granted'),
+      status: req.status,
+      canAskAgain: req.canAskAgain
+    };
   } catch (e) {
     return { granted: false, status: 'error', error: e?.message || 'Permission error' };
   }

@@ -15,7 +15,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Share
+  Share,
+  Linking
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/colors';
@@ -328,8 +329,12 @@ export default function CalendarSection({
       onShowToast && onShowToast('Notification sent — check your top status bar!');
     } else {
       Alert.alert(
-        'Check Phone Notification Settings',
-        `${res?.error || 'Could not display notification.'}\n\nNote: While testing in Expo Go, allow notifications for "Expo Go" in Android Settings → Apps → Expo Go → Notifications.`
+        'Allow Notifications',
+        `${res?.error || 'Could not display notification.'}\n\nTap "Open Settings" → Notifications → toggle ON.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) }
+        ]
       );
     }
   }
