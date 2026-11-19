@@ -106,6 +106,18 @@ export default function ExpensesSection({
     [filteredExpenses]
   );
 
+  const dayTotals = useMemo(() => {
+    const map = {};
+    for (const e of filteredExpenses) {
+      const k = toLocalDateKey(e.createdAt);
+      if (!k) continue;
+      if (!map[k]) map[k] = { cashIn: 0, spent: 0 };
+      if (e.kind === 'CASH_IN') map[k].cashIn += Number(e.amount) || 0;
+      else map[k].spent += Number(e.amount) || 0;
+    }
+    return map;
+  }, [filteredExpenses]);
+
   const openModal = (targetKind = 'EXPENSE') => {
     hapticTap('light');
     setKind(targetKind);
@@ -374,40 +386,65 @@ export default function ExpensesSection({
             )}
           </>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const isCashIn = item.kind === 'CASH_IN';
+          const itemDayKey = toLocalDateKey(item.createdAt);
+          const prevDayKey =
+            index > 0 ? toLocalDateKey(filteredExpenses[index - 1]?.createdAt) : null;
+          const showDayHeader = index === 0 || itemDayKey !== prevDayKey;
+          const dayInfo = dayTotals[itemDayKey] || { cashIn: 0, spent: 0 };
+          const dayLabel =
+            itemDayKey === todayKey
+              ? 'TODAY'
+              : itemDayKey === yestKey
+              ? 'YESTERDAY'
+              : formatShortDate(itemDayKey).toUpperCase();
+
           return (
-            <View style={styles.txRow}>
-              <View style={[styles.txIconBox, isCashIn && styles.txIconBoxCash]}>
-                <Feather
-                  name={isCashIn ? 'arrow-down-left' : 'arrow-up-right'}
-                  size={15}
-                  color={isCashIn ? colors.success : colors.textSecondary}
-                />
-              </View>
+            <View>
+              {showDayHeader && (
+                <View style={[styles.dayGroupHeader, index > 0 && { marginTop: 10 }]}>
+                  <Text style={styles.dayGroupLabel}>{dayLabel}</Text>
+                  <Text style={styles.dayGroupSummary}>
+                    {dayInfo.cashIn > 0 ? `+${formatPeso(dayInfo.cashIn)}` : ''}
+                    {dayInfo.cashIn > 0 && dayInfo.spent > 0 ? '  •  ' : ''}
+                    {dayInfo.spent > 0 ? `-${formatPeso(dayInfo.spent)}` : ''}
+                  </Text>
+                </View>
+              )}
 
-              <View style={{ flex: 1 }}>
-                <Text style={styles.txTitle} numberOfLines={1}>
-                  {item.title}
+              <View style={styles.txRow}>
+                <View style={[styles.txIconBox, isCashIn && styles.txIconBoxCash]}>
+                  <Feather
+                    name={isCashIn ? 'arrow-down-left' : 'arrow-up-right'}
+                    size={15}
+                    color={isCashIn ? colors.success : colors.textSecondary}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.txTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.txMeta}>
+                    {item.category ? `${item.category} • ` : ''}
+                    {formatDate(item.createdAt)}
+                  </Text>
+                </View>
+
+                <Text style={[styles.txAmount, isCashIn && { color: colors.success }]}>
+                  {isCashIn ? '+' : '-'}
+                  {formatPeso(item.amount)}
                 </Text>
-                <Text style={styles.txMeta}>
-                  {item.category ? `${item.category} • ` : ''}
-                  {formatDate(item.createdAt)}
-                </Text>
+
+                <TouchableOpacity
+                  onPress={() => confirmDelete(item)}
+                  style={styles.txDeleteBtn}
+                  hitSlop={8}
+                >
+                  <Feather name="trash-2" size={13} color={colors.textMuted} />
+                </TouchableOpacity>
               </View>
-
-              <Text style={[styles.txAmount, isCashIn && { color: colors.success }]}>
-                {isCashIn ? '+' : '-'}
-                {formatPeso(item.amount)}
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => confirmDelete(item)}
-                style={styles.txDeleteBtn}
-                hitSlop={8}
-              >
-                <Feather name="trash-2" size={13} color={colors.textMuted} />
-              </TouchableOpacity>
             </View>
           );
         }}
@@ -904,6 +941,24 @@ const makeStyles = (colors) =>
       fontSize: 12,
       fontWeight: '600',
       color: colors.textMuted
+    },
+    dayGroupHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 2,
+      marginBottom: 7
+    },
+    dayGroupLabel: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.7
+    },
+    dayGroupSummary: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textSecondary
     },
     txRow: {
       flexDirection: 'row',

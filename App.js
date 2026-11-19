@@ -634,6 +634,7 @@ function AppShell({
     setItems([]);
     setExpenses([]);
     setEvents([]);
+    setAcknowledgedAlerts({});
     setDetailItemId(null);
     clearAllMediaFiles();
     await replaceAllVaultItems([]);
@@ -673,6 +674,16 @@ function AppShell({
         : 'NOTE';
     openQuickCapture(defaultType);
   };
+
+  const activeTodayAlarmsCount = useMemo(() => {
+    if (settings.notificationsEnabled === false) return 0;
+    const now = new Date();
+    return events.reduce((count, ev) => {
+      const ackKey = getActiveAlertKeyForToday(ev, now);
+      if (ackKey && !acknowledgedAlerts[ackKey]) return count + 1;
+      return count;
+    }, 0);
+  }, [events, acknowledgedAlerts, settings.notificationsEnabled]);
 
   const activeSectionMeta =
     VAULT_SECTIONS.find((s) => s.id === activeSection) || VAULT_SECTIONS[0];
@@ -746,17 +757,34 @@ function AppShell({
           ) : null}
         </View>
 
-        <TouchableOpacity
-          style={styles.settingsBtn}
-          onPress={() => {
-            hapticTap('light');
-            setSettingsVisible(true);
-          }}
-          activeOpacity={0.7}
-          hitSlop={8}
-        >
-          <Feather name="settings" size={17} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {activeTodayAlarmsCount > 0 && (
+            <TouchableOpacity
+              style={styles.alarmBellBtn}
+              onPress={() => {
+                hapticTap('light');
+                handleSelectSection('CALENDAR');
+              }}
+              activeOpacity={0.7}
+              hitSlop={8}
+            >
+              <Feather name="bell" size={16} color={colors.warning} />
+              <View style={styles.alarmBellDot} />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={styles.settingsBtn}
+            onPress={() => {
+              hapticTap('light');
+              setSettingsVisible(true);
+            }}
+            activeOpacity={0.7}
+            hitSlop={8}
+          >
+            <Feather name="settings" size={17} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Dropdown Section Switcher */}
@@ -1066,6 +1094,30 @@ const makeStyles = (colors) =>
       color: colors.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.5
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    alarmBellBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    alarmBellDot: {
+      position: 'absolute',
+      top: 7,
+      right: 8,
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.warning
     },
     settingsBtn: {
       width: 36,

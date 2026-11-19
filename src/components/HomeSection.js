@@ -116,6 +116,9 @@ export default function HomeSection({
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [globalQuery, setGlobalQuery] = useState('');
+  const [welcomeExpanded, setWelcomeExpanded] = useState(
+    () => items.length + expenses.length + events.length === 0
+  );
 
   const matchingItems = useMemo(() => {
     if (!globalQuery.trim()) return [];
@@ -309,19 +312,53 @@ export default function HomeSection({
           </>
         ) : (
           <>
-            <View style={styles.heroCard}>
-              <View style={styles.heroTag}>
-                <Feather name="shield" size={11} color={colors.textSecondary} />
-                <Text style={styles.heroTagText}>100% OFFLINE • STANDALONE</Text>
-              </View>
+            {welcomeExpanded ? (
+              <View style={styles.heroCard}>
+                <View style={styles.heroHeaderRow}>
+                  <View style={styles.heroTag}>
+                    <Feather name="shield" size={11} color={colors.textSecondary} />
+                    <Text style={styles.heroTagText}>100% OFFLINE • STANDALONE</Text>
+                  </View>
 
-              <Text style={styles.heroTitle}>Welcome to SecondBrain Vault</Text>
-              <Text style={styles.heroBody}>
-                Your private personal space on your phone — built so you never have to
-                message yourself links, notes, or reminders again. Everything stays offline
-                in local device storage with zero cloud tracking.
-              </Text>
-            </View>
+                  <TouchableOpacity
+                    style={styles.heroToggleBtn}
+                    onPress={() => {
+                      hapticTap('light');
+                      setWelcomeExpanded(false);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.heroToggleText}>Hide</Text>
+                    <Feather name="chevron-up" size={12} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.heroTitle}>Welcome to SecondBrain Vault</Text>
+                <Text style={styles.heroBody}>
+                  Your private personal space on your phone — built so you never have to
+                  message yourself links, notes, or reminders again. Everything stays offline
+                  in local device storage with zero cloud tracking.
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.heroCompactBar}
+                onPress={() => {
+                  hapticTap('light');
+                  setWelcomeExpanded(true);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                  <Feather name="shield" size={12} color={colors.textSecondary} />
+                  <Text style={styles.heroTagText}>100% OFFLINE VAULT</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={styles.heroToggleText}>About</Text>
+                  <Feather name="chevron-down" size={13} color={colors.textMuted} />
+                </View>
+              </TouchableOpacity>
+            )}
 
             {upcomingEvents.length > 0 && (() => {
               const first = upcomingEvents[0];
@@ -486,7 +523,7 @@ const makeStyles = (colors) =>
     content: {
       paddingHorizontal: 20,
       paddingTop: 4,
-      paddingBottom: 100
+      paddingBottom: 112
     },
     resultsHeader: {
       flexDirection: 'row',
@@ -560,6 +597,34 @@ const makeStyles = (colors) =>
       padding: 18,
       marginBottom: 14
     },
+    heroHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12
+    },
+    heroCompactBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 11,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      marginBottom: 12
+    },
+    heroToggleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3
+    },
+    heroToggleText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
     heroTag: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -570,8 +635,7 @@ const makeStyles = (colors) =>
       borderColor: colors.border,
       borderRadius: 6,
       paddingHorizontal: 8,
-      paddingVertical: 3,
-      marginBottom: 12
+      paddingVertical: 3
     },
     heroTagText: {
       fontSize: 10,

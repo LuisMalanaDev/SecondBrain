@@ -39,7 +39,9 @@ import {
   ensureNotificationChannelAndPermission,
   sendTestReminderNotification,
   getScheduledEventAlertsSummary,
-  parseNotifyTime
+  parseNotifyTime,
+  getNextHourlyAlertDate,
+  formatClockTime12h
 } from '../utils/eventNotifications';
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -228,6 +230,14 @@ export default function CalendarSection({
     () => enrichedEvents.filter((e) => e.stats.daysUntil !== null && e.stats.daysUntil <= 7),
     [enrichedEvents]
   );
+
+  const nextHourlyAlertLabel = useMemo(() => {
+    const dates = unackedTodayEvents
+      .map((e) => getNextHourlyAlertDate(e, now))
+      .filter(Boolean)
+      .sort((a, b) => a.getTime() - b.getTime());
+    return dates.length > 0 ? formatClockTime12h(dates[0]) : null;
+  }, [unackedTodayEvents]);
 
   const visibleEvents = useMemo(() => {
     let base = enrichedEvents;
@@ -440,7 +450,9 @@ export default function CalendarSection({
                 <Text style={styles.alertSub}>
                   {upcomingBannerEvents[0].stats.primaryHeadline}
                   {unackedTodayEvents.length > 0
-                    ? ' · Repeats every hour until stopped'
+                    ? nextHourlyAlertLabel
+                      ? ` · Next hourly alert: ${nextHourlyAlertLabel}`
+                      : ' · Hourly reminder active today'
                     : upcomingBannerEvents.length > 1
                     ? ` · +${upcomingBannerEvents.length - 1} more this week`
                     : ''}

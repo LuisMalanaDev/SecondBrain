@@ -70,6 +70,57 @@ export function parseNotifyTime(notifyTime = '09:00') {
   return { hour, minute };
 }
 
+export function formatClockTime12h(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  let h = date.getHours();
+  const m = String(date.getMinutes()).padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+/**
+ * Computes the next upcoming alert/hourly nudge Date for an event whose alert
+ * is active today, mirroring syncEventNotifications's 10:30 PM cutoff.
+ */
+export function getNextHourlyAlertDate(ev, refDate = new Date()) {
+  if (!ev || ev.notifyLeadDays === -1) return null;
+  const stats = computeEventStats(ev, refDate);
+  if (!stats.nextDate) return null;
+
+  const todayKey = toLocalDateKey(refDate);
+  const leadDays = Number.isFinite(Number(ev.notifyLeadDays)) ? Number(ev.notifyLeadDays) : 1;
+  const { hour, minute } = parseNotifyTime(ev.notifyTime);
+  const offsets = leadDays > 0 ? [leadDays, 0] : [0];
+
+  for (const offset of offsets) {
+    const baseFire = new Date(
+      stats.nextDate.getFullYear(),
+      stats.nextDate.getMonth(),
+      stats.nextDate.getDate() - offset,
+      hour,
+      minute,
+      0
+    );
+    if (toLocalDateKey(baseFire) !== todayKey) continue;
+
+    if (baseFire.getTime() > refDate.getTime() + 5000) {
+      return baseFire;
+    }
+    const nextHour = new Date(refDate.getTime() + 60 * 60 * 1000);
+    const endOfFireDay = new Date(
+      baseFire.getFullYear(),
+      baseFire.getMonth(),
+      baseFire.getDate(),
+      22,
+      30,
+      0
+    );
+    return nextHour.getTime() <= endOfFireDay.getTime() ? nextHour : null;
+  }
+  return null;
+}
+
 export async function sendTestReminderNotification() {
   try {
     const perm = await ensureNotificationChannelAndPermission(true);
