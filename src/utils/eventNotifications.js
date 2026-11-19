@@ -5,11 +5,12 @@
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { computeEventStats, MONTH_SHORT } from './helpers';
+import { computeEventStats, MONTH_SHORT, toLocalDateKey } from './helpers';
 
 const CHANNEL_ID = 'secondbrain_calendar_v1';
 
 let handlerConfigured = false;
+const notifiedTodayKeys = new Set();
 
 export function configureNotifications() {
   if (handlerConfigured) return;
@@ -41,34 +42,62 @@ export async function ensureNotificationChannelAndPermission(requestPrompt = fal
     }
 
     const current = await Notifications.getPermissionsAsync();
-    if (current.status === 'granted') return true;
-    if (!requestPrompt) return false;
+    if (current.status === 'granted') {
+      return { granted: true, status: current.status };
+    }
+    if (!requestPrompt) {
+      return { granted: false, status: current.status };
+    }
 
     const req = await Notifications.requestPermissionsAsync();
-    return req.status === 'granted';
+    return { granted: req.status === 'granted', status: req.status };
   } catch (e) {
-    return false;
+    return { granted: false, status: 'error', error: e?.message || 'Permission error' };
   }
 }
 
-export async function sendTestReminderNotification() {
-  const granted = await ensureNotificationChannelAndPermission(true);
-  if (!granted) return false;
+export function parseNotifyTime(notifyTime = '09:00') {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((notifyTime || '').trim());
+  if (!m) return { hour: 9, minute: 0 };
+  const hour = Math.max(0, Math.min(23, Number(m[1])));
+  const minute = Math.max(0, Math.min(59, Number(m[2])));
+  return { hour, minute };
+}
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'SecondBrain Calendar',
-      body: 'Sound & notification alerts are working for your Birthdays & Anniversaries!',
-      sound: 'default',
-      vibrate: [0, 280, 140, 280]
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: 2,
-      ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {})
+export async function sendTestReminderNotification() {
+  try {
+    const perm = await ensureNotificationChannelAndPermission(true);
+    if (!perm.granted) {
+      return {
+        ok: false,
+        error: `Notification permission is "${perm.status}". Enable Notifications in Android App Settings.`
+      };
     }
-  });
-  return true;
+
+    // Present an immediate notification in the status bar/shade right away
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'SecondBrain Calendar Alert',
+        body: 'Sound & notification alerts are active for your Birthdays, Monthsaries & Anniversaries!',
+        sound: 'default',
+        vibrate: [0, 280, 140, 280]
+      },
+      trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null
+    });
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e?.message || 'Could not trigger notification.' };
+  }
+}
+
+export async function getScheduledEventAlertsSummary() {
+  try {
+    const list = await Notifications.getAllScheduledNotificationsAsync();
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function syncEventNotifications(events = [], notificationsEnabled = true) {
@@ -77,14 +106,18 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
     await Notifications.cancelAllScheduledNotificationsAsync();
 
     if (!notificationsEnabled || !Array.isArray(events) || events.length === 0) {
-      return 0;
+      return { scheduledCount: 0, immediateFired: 0 };
     }
 
-    const granted = await ensureNotificationChannelAndPermission(false);
-    if (!granted) return 0;
+    const perm = await ensureNotificationChannelAndPermission(true);
+    if (!perm.granted) {
+      return { scheduledCount: 0, immediateFired: 0, permissionDenied: true };
+    }
 
     const now = new Date();
+    const todayKey = toLocalDateKey(now);
     let scheduledCount = 0;
+    let immediateFired = 0;
 
     for (const ev of events) {
       if (!ev || ev.notifyLeadDays === -1) continue;
@@ -94,9 +127,18 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
       const leadDays = Number.isFinite(Number(ev.notifyLeadDays))
         ? Number(ev.notifyLeadDays)
         : 1;
+      const { hour, minute } = parseNotifyTime(ev.notifyTime);
 
       const offsets = leadDays > 0 ? [leadDays, 0] : [0];
       const dateStr = `${MONTH_SHORT[stats.nextDate.getMonth()]} ${stats.nextDate.getDate()}`;
+      const typeLabel =
+        ev.type === 'BIRTHDAY'
+          ? 'Birthday'
+          : ev.type === 'ANNIVERSARY'
+          ? 'Anniversary'
+          : ev.type === 'MONTHSARY'
+          ? 'Monthsary'
+          : 'Reminder';
 
       for (const offset of offsets) {
         if (scheduledCount >= 48) break;
@@ -104,33 +146,43 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
           stats.nextDate.getFullYear(),
           stats.nextDate.getMonth(),
           stats.nextDate.getDate() - offset,
-          9,
-          0,
+          hour,
+          minute,
           0
         );
 
-        if (fireAt.getTime() <= now.getTime() + 5000) continue;
-
         const prefix =
-          offset === 0
-            ? 'Today'
-            : offset === 1
-            ? 'Tomorrow'
-            : `In ${offset} days`;
-
-        const typeLabel =
-          ev.type === 'BIRTHDAY'
-            ? 'Birthday'
-            : ev.type === 'ANNIVERSARY'
-            ? 'Anniversary'
-            : ev.type === 'MONTHSARY'
-            ? 'Monthsary'
-            : 'Reminder';
+          offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : `In ${offset} days`;
 
         const body =
           ev.type === 'BIRTHDAY' || ev.type === 'ANNIVERSARY' || ev.type === 'MONTHSARY'
             ? `${prefix} (${dateStr}): ${ev.title} — ${stats.primaryHeadline || typeLabel}`
             : `${prefix} (${dateStr}): ${ev.title}`;
+
+        const fireKey = toLocalDateKey(fireAt);
+
+        // If the alert date IS TODAY and the selected clock time already passed today,
+        // fire an immediate reminder once today instead of silently skipping!
+        if (fireKey === todayKey && fireAt.getTime() <= now.getTime() + 5000) {
+          const dedupeKey = `${ev.id}|${offset}|${todayKey}`;
+          if (!notifiedTodayKeys.has(dedupeKey)) {
+            notifiedTodayKeys.add(dedupeKey);
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `${typeLabel}: ${ev.title}`,
+                body,
+                sound: 'default',
+                vibrate: [0, 280, 140, 280],
+                data: { eventId: ev.id, section: 'CALENDAR' }
+              },
+              trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null
+            });
+            immediateFired++;
+          }
+          continue;
+        }
+
+        if (fireAt.getTime() <= now.getTime() + 5000) continue;
 
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -150,8 +202,8 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
       }
     }
 
-    return scheduledCount;
+    return { scheduledCount, immediateFired };
   } catch (e) {
-    return 0;
+    return { scheduledCount: 0, immediateFired: 0, error: e?.message };
   }
 }

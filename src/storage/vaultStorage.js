@@ -79,6 +79,7 @@ async function getDb() {
           year INTEGER,
           repeatYearly INTEGER DEFAULT 1,
           notifyLeadDays INTEGER DEFAULT 1,
+          notifyTime TEXT DEFAULT '09:00',
           note TEXT,
           createdAt TEXT,
           updatedAt TEXT
@@ -90,6 +91,9 @@ async function getDb() {
           value TEXT
         );
       `);
+      try {
+        await db.execAsync("ALTER TABLE vault_events ADD COLUMN notifyTime TEXT DEFAULT '09:00';");
+      } catch (e) {}
       return db;
     })();
   }
@@ -146,6 +150,7 @@ function rowToEvent(row) {
     year: row.year != null ? Number(row.year) : null,
     repeatYearly: Boolean(row.repeatYearly),
     notifyLeadDays: row.notifyLeadDays != null ? Number(row.notifyLeadDays) : 1,
+    notifyTime: row.notifyTime || '09:00',
     note: row.note || '',
     createdAt: row.createdAt || '',
     updatedAt: row.updatedAt || ''
@@ -386,8 +391,8 @@ export async function upsertVaultEvent(ev) {
     const db = await getDb();
     await db.runAsync(
       `INSERT OR REPLACE INTO vault_events (
-        id, title, type, month, day, year, repeatYearly, notifyLeadDays, note, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, title, type, month, day, year, repeatYearly, notifyLeadDays, notifyTime, note, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ev.id,
       ev.title || '',
       ev.type || 'IMPORTANT',
@@ -396,6 +401,7 @@ export async function upsertVaultEvent(ev) {
       ev.year != null ? Number(ev.year) : null,
       ev.repeatYearly ? 1 : 0,
       ev.notifyLeadDays != null ? Number(ev.notifyLeadDays) : 1,
+      ev.notifyTime || '09:00',
       ev.note || '',
       ev.createdAt || new Date().toISOString(),
       ev.updatedAt || new Date().toISOString()
@@ -418,8 +424,8 @@ export async function replaceAllVaultEvents(events = []) {
       for (const ev of events) {
         await db.runAsync(
           `INSERT OR REPLACE INTO vault_events (
-            id, title, type, month, day, year, repeatYearly, notifyLeadDays, note, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, title, type, month, day, year, repeatYearly, notifyLeadDays, notifyTime, note, createdAt, updatedAt
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ev.id,
           ev.title || '',
           ev.type || 'IMPORTANT',
@@ -428,6 +434,7 @@ export async function replaceAllVaultEvents(events = []) {
           ev.year != null ? Number(ev.year) : null,
           ev.repeatYearly ? 1 : 0,
           ev.notifyLeadDays != null ? Number(ev.notifyLeadDays) : 1,
+          ev.notifyTime || '09:00',
           ev.note || '',
           ev.createdAt || new Date().toISOString(),
           ev.updatedAt || new Date().toISOString()

@@ -34,7 +34,9 @@ import {
 } from '../utils/helpers';
 import {
   ensureNotificationChannelAndPermission,
-  sendTestReminderNotification
+  sendTestReminderNotification,
+  getScheduledEventAlertsSummary,
+  parseNotifyTime
 } from '../utils/eventNotifications';
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -94,8 +96,17 @@ export default function CalendarSection({
   const [yearInput, setYearInput] = useState(String(now.getFullYear()));
   const [repeatYearly, setRepeatYearly] = useState(true);
   const [notifyLeadDays, setNotifyLeadDays] = useState(1);
+  const [notifyTime, setNotifyTime] = useState('09:00');
+  const [queuedCount, setQueuedCount] = useState(0);
   const [note, setNote] = useState('');
   const [formError, setFormError] = useState('');
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      getScheduledEventAlertsSummary().then((list) => setQueuedCount(list.length));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [events, notificationsEnabled]);
 
   React.useEffect(() => {
     if (!externalAddTrigger) return;
@@ -113,6 +124,7 @@ export default function CalendarSection({
     setYearInput(type === 'MONTHSARY' ? '' : String(viewYear));
     setRepeatYearly(true);
     setNotifyLeadDays(1);
+    setNotifyTime('09:00');
     setNote('');
     setFormError('');
     setModalOpen(true);
@@ -128,6 +140,7 @@ export default function CalendarSection({
     setYearInput(ev.year != null ? String(ev.year) : '');
     setRepeatYearly(Boolean(ev.repeatYearly));
     setNotifyLeadDays(ev.notifyLeadDays != null ? Number(ev.notifyLeadDays) : 1);
+    setNotifyTime(ev.notifyTime || '09:00');
     setNote(ev.note || '');
     setFormError('');
     setModalOpen(true);
@@ -273,6 +286,9 @@ export default function CalendarSection({
       await ensureNotificationChannelAndPermission(true);
     }
 
+    const { hour, minute } = parseNotifyTime(notifyTime);
+    const cleanTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
     const ts = nowIso();
     const existing = editingId ? events.find((x) => x.id === editingId) : null;
     const saved = {
@@ -285,6 +301,7 @@ export default function CalendarSection({
       repeatYearly:
         evType === 'BIRTHDAY' || evType === 'ANNIVERSARY' ? true : Boolean(repeatYearly),
       notifyLeadDays,
+      notifyTime: cleanTime,
       note: note.trim(),
       createdAt: existing?.createdAt || ts,
       updatedAt: ts
@@ -305,13 +322,14 @@ export default function CalendarSection({
 
   async function handleTestAlert() {
     hapticTap('medium');
-    const ok = await sendTestReminderNotification();
-    if (ok) {
-      onShowToast && onShowToast('Test beep alert firing in 2 seconds!');
+    const res = await sendTestReminderNotification();
+    if (res?.ok) {
+      hapticNotify('success');
+      onShowToast && onShowToast('Notification sent — check your top status bar!');
     } else {
       Alert.alert(
-        'Notifications Blocked',
-        'Please allow Notifications for SecondBrain Vault in Android App Settings to receive sound alerts.'
+        'Check Phone Notification Settings',
+        `${res?.error || 'Could not display notification.'}\n\nNote: While testing in Expo Go, allow notifications for "Expo Go" in Android Settings → Apps → Expo Go → Notifications.`
       );
     }
   }
@@ -365,7 +383,9 @@ export default function CalendarSection({
               color={notificationsEnabled ? colors.success : colors.textMuted}
             />
             <Text style={styles.bellChipText}>
-              {notificationsEnabled ? 'Alerts On' : 'Muted'}
+              {notificationsEnabled
+                ? `Alerts On${queuedCount > 0 ? ` (${queuedCount})` : ''}`
+                : 'Muted'}
             </Text>
           </TouchableOpacity>
 
@@ -796,6 +816,47 @@ export default function CalendarSection({
                   );
                 })}
               </View>
+
+              {notifyLeadDays >= 0 && (
+                <>
+                  <Text style={styles.label}>ALERT TIME (24H HH:MM)</Text>
+                  <View style={styles.leadRow}>
+                    {[
+                      { t: '09:00', lbl: '9 AM' },
+                      { t: '12:00', lbl: '12 PM' },
+                      { t: '18:00', lbl: '6 PM' },
+                      { t: '20:00', lbl: '8 PM' }
+                    ].map((p) => {
+                      const active = notifyTime === p.t;
+                      return (
+                        <TouchableOpacity
+                          key={p.t}
+                          style={[styles.leadChip, active && styles.leadChipActive]}
+                          onPress={() => {
+                            hapticTap('light');
+                            setNotifyTime(p.t);
+                          }}
+                        >
+                          <Text style={[styles.leadText, active && styles.leadTextActive]}>
+                            {p.lbl}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    <TextInput
+                      value={notifyTime}
+                      onChangeText={setNotifyTime}
+                      placeholder="09:00"
+                      placeholderTextColor={colors.textMuted}
+                      maxLength={5}
+                      style={[
+                        styles.input,
+                        { width: 72, marginBottom: 0, paddingVertical: 5, textAlign: 'center', fontSize: 12 }
+                      ]}
+                    />
+                  </View>
+                </>
+              )}
 
               {/* Optional Note */}
               <Text style={styles.label}>NOTE / GIFT IDEA (OPTIONAL)</Text>
