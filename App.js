@@ -6,19 +6,18 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   TextInput,
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  StatusBar as RNStatusBar,
   Platform,
   Animated,
   AppState,
   Share
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -104,23 +103,25 @@ export default function App() {
   }, []);
 
   return (
-    <ThemeProvider mode={settings.themeMode || 'dark'}>
-      <AppShell
-        items={items}
-        setItems={setItems}
-        expenses={expenses}
-        setExpenses={setExpenses}
-        events={events}
-        setEvents={setEvents}
-        pinCode={pinCode}
-        setPinCode={setPinCode}
-        settings={settings}
-        setSettings={setSettings}
-        isLoaded={isLoaded}
-        isAppLocked={isAppLocked}
-        setIsAppLocked={setIsAppLocked}
-      />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider mode={settings.themeMode || 'dark'}>
+        <AppShell
+          items={items}
+          setItems={setItems}
+          expenses={expenses}
+          setExpenses={setExpenses}
+          events={events}
+          setEvents={setEvents}
+          pinCode={pinCode}
+          setPinCode={setPinCode}
+          settings={settings}
+          setSettings={setSettings}
+          isLoaded={isLoaded}
+          isAppLocked={isAppLocked}
+          setIsAppLocked={setIsAppLocked}
+        />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -624,7 +625,10 @@ function AppShell({
 
   if (isAppLocked && pinCode) {
     return (
-      <SafeAreaView style={styles.appLockedContainer}>
+      <SafeAreaView
+        edges={['top', 'bottom', 'left', 'right']}
+        style={styles.appLockedContainer}
+      >
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <PinLockModal
           visible={true}
@@ -646,7 +650,10 @@ function AppShell({
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      edges={['top', 'bottom', 'left', 'right']}
+      style={styles.safeArea}
+    >
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
       {/* Header */}
@@ -935,8 +942,7 @@ const makeStyles = (colors) =>
   StyleSheet.create({
     safeArea: {
       flex: 1,
-      backgroundColor: colors.background,
-      paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight || 20 : 0
+      backgroundColor: colors.background
     },
     loadingContainer: {
       flex: 1,
@@ -1073,7 +1079,7 @@ const makeStyles = (colors) =>
     },
     fab: {
       position: 'absolute',
-      bottom: Platform.OS === 'ios' ? 36 : 24,
+      bottom: 18,
       right: 20,
       flexDirection: 'row',
       alignItems: 'center',

@@ -5,7 +5,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Modal,
-  SafeAreaView,
   View,
   Text,
   TouchableOpacity,
@@ -16,6 +15,7 @@ import {
   Linking,
   Alert
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/colors';
 import { formatDate, extractDomain, hapticTap } from '../utils/helpers';
@@ -76,7 +76,7 @@ export default function ItemDetailModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.safeArea}>
         {/* Top Navigation Bar */}
         <View style={styles.topBar}>
           <TouchableOpacity onPress={onClose} style={styles.navBtn} hitSlop={10}>

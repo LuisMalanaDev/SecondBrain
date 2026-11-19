@@ -16,6 +16,7 @@ import {
   Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useTheme } from '../theme/colors';
@@ -41,6 +42,7 @@ export default function SettingsModal({
   onShowToast
 }) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [showPasteImport, setShowPasteImport] = useState(false);
@@ -210,7 +212,7 @@ export default function SettingsModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 10) }]}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>

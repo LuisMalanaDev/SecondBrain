@@ -19,6 +19,7 @@ import {
   Linking
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/colors';
 import {
   makeId,
@@ -77,6 +78,7 @@ export default function CalendarSection({
   onShowToast
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const now = new Date();
@@ -648,7 +650,7 @@ export default function CalendarSection({
           style={styles.backdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>
                 {editingId ? 'Edit Calendar Date' : 'Save Important Date'}

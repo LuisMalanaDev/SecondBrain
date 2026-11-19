@@ -17,6 +17,7 @@ import {
   Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/colors';
 import {
   makeId,
@@ -58,6 +59,7 @@ export default function ExpensesSection({
   onExternalTriggerHandled
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [dateFilter, setDateFilter] = useState('ALL');
@@ -451,7 +453,7 @@ export default function ExpensesSection({
           style={styles.modalBackdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {kind === 'CASH_IN' ? 'Add Cash' : 'Log Expense'}

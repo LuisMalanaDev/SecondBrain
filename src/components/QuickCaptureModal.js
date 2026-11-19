@@ -18,6 +18,7 @@ import {
   Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -74,6 +75,7 @@ export default function QuickCaptureModal({
   onClose
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [draft, setDraft] = useState(blankDraft(initialType));
@@ -284,7 +286,7 @@ export default function QuickCaptureModal({
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{isEdit ? 'Edit Item' : 'New Item'}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={10}>
