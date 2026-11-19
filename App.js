@@ -731,7 +731,9 @@ function AppShell({
       {/* ANALYTICS SECTION */}
       {activeSection === 'ANALYTICS' && (
         <AnalyticsSection
+          items={items}
           expenses={expenses}
+          events={events}
           stats={stats}
           onSelectSection={handleSelectSection}
         />
