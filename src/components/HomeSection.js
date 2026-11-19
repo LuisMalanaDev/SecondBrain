@@ -10,10 +10,17 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Platform
+  Platform,
+  LayoutAnimation,
+  UIManager
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/colors';
+import PulseDot from './PulseDot';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import {
   formatPeso,
   formatDate,
@@ -185,6 +192,12 @@ export default function HomeSection({
 
   const isSearching = globalQuery.trim().length > 0;
 
+  function toggleWelcome() {
+    hapticTap('light');
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setWelcomeExpanded((v) => !v);
+  }
+
   return (
     <View style={styles.container}>
       {/* Global Search Bar */}
@@ -342,10 +355,7 @@ export default function HomeSection({
 
                   <TouchableOpacity
                     style={styles.heroToggleBtn}
-                    onPress={() => {
-                      hapticTap('light');
-                      setWelcomeExpanded(false);
-                    }}
+                    onPress={toggleWelcome}
                     hitSlop={8}
                   >
                     <Text style={styles.heroToggleText}>Hide</Text>
@@ -363,14 +373,11 @@ export default function HomeSection({
             ) : (
               <TouchableOpacity
                 style={styles.heroCompactBar}
-                onPress={() => {
-                  hapticTap('light');
-                  setWelcomeExpanded(true);
-                }}
+                onPress={toggleWelcome}
                 activeOpacity={0.75}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                  <Feather name="shield" size={12} color={colors.textSecondary} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <PulseDot color={colors.success} size={6} active={true} />
                   <Text style={styles.heroTagText}>100% OFFLINE VAULT</Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -386,16 +393,28 @@ export default function HomeSection({
               const isAlarmActive = Boolean(ackKey && !acknowledgedAlerts[ackKey]);
               return (
                 <TouchableOpacity
-                  style={[styles.snapshotCard, { marginBottom: 14, borderColor: colors.warning }]}
+                  style={[
+                    styles.snapshotCard,
+                    {
+                      marginBottom: 14,
+                      backgroundColor: isAlarmActive ? colors.warningTint : colors.surface,
+                      borderColor: isAlarmActive ? colors.warningBorder : colors.borderHover
+                    }
+                  ]}
                   onPress={() => {
                     hapticTap('light');
                     onSelectSection('CALENDAR');
                   }}
                   activeOpacity={0.75}
                 >
-                  <Text style={[styles.snapshotLabel, { color: colors.warning }]}>
-                    UPCOMING MILESTONE ({first.evStats.countdownLabel})
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    {isAlarmActive && (
+                      <PulseDot color={colors.warning} size={6} active={true} />
+                    )}
+                    <Text style={[styles.snapshotLabel, { color: colors.warning, marginBottom: 0 }]}>
+                      UPCOMING MILESTONE ({first.evStats.countdownLabel})
+                    </Text>
+                  </View>
                   <Text style={styles.snapshotValue} numberOfLines={1}>
                     {first.title}
                   </Text>
@@ -486,6 +505,20 @@ export default function HomeSection({
                       ? `${taskStats.doneTasks}/${taskStats.totalTasks} Done`
                       : `${taskStats.lists} Lists`}
                   </Text>
+                  {taskStats.totalTasks > 0 && (
+                    <View style={styles.miniProgressTrack}>
+                      <View
+                        style={[
+                          styles.miniProgressFill,
+                          {
+                            width: `${Math.round(
+                              (taskStats.doneTasks / Math.max(1, taskStats.totalTasks)) * 100
+                            )}%`
+                          }
+                        ]}
+                      />
+                    </View>
+                  )}
                   <Text style={styles.snapshotHint} numberOfLines={1}>
                     {taskStats.openTasks > 0
                       ? `${taskStats.openTasks} remaining ›`
@@ -744,7 +777,22 @@ const makeStyles = (colors) =>
       fontSize: 18,
       fontWeight: '800',
       color: colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+      letterSpacing: -0.3,
       marginBottom: 4
+    },
+    miniProgressTrack: {
+      height: 3,
+      backgroundColor: colors.surfaceSubtle,
+      borderRadius: 1.5,
+      overflow: 'hidden',
+      marginTop: 2,
+      marginBottom: 5
+    },
+    miniProgressFill: {
+      height: '100%',
+      backgroundColor: colors.textPrimary,
+      borderRadius: 1.5
     },
     snapshotHint: {
       fontSize: 11,

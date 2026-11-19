@@ -21,6 +21,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/colors';
+import PulseDot from './PulseDot';
 import {
   makeId,
   nowIso,
@@ -438,9 +439,21 @@ export default function CalendarSection({
 
         {/* Coming Soon Alert Card + Stop Hourly Alarm Control */}
         {upcomingBannerEvents.length > 0 && (
-          <View style={styles.alertBanner}>
+          <View
+            style={[
+              styles.alertBanner,
+              unackedTodayEvents.length > 0 && {
+                backgroundColor: colors.warningTint,
+                borderColor: colors.warningBorder
+              }
+            ]}
+          >
             <View style={styles.alertLeft}>
-              <Feather name="bell" size={15} color={colors.warning} />
+              {unackedTodayEvents.length > 0 ? (
+                <PulseDot color={colors.warning} size={8} active={true} />
+              ) : (
+                <Feather name="bell" size={15} color={colors.warning} />
+              )}
               <View style={{ flex: 1 }}>
                 <Text style={styles.alertTitle}>
                   {upcomingBannerEvents[0].stats.daysUntil === 0

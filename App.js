@@ -951,108 +951,55 @@ function AppShell({
 
       {/* Docked One-Handed Bottom Bar (always safely above Android nav buttons) */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.bottomTab}
-          onPress={() => {
-            hapticTap('light');
-            handleSelectSection('HOME');
-          }}
-          activeOpacity={0.7}
-        >
-          <Feather
-            name="home"
-            size={18}
-            color={activeSection === 'HOME' ? colors.textPrimary : colors.textMuted}
-          />
-          <Text
-            style={[
-              styles.bottomTabLabel,
-              activeSection === 'HOME' && styles.bottomTabLabelActive
-            ]}
-          >
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.bottomTab}
-          onPress={() => {
-            hapticTap('light');
-            handleSelectSection('EXPENSES');
-          }}
-          activeOpacity={0.7}
-        >
-          <Feather
-            name="credit-card"
-            size={18}
-            color={activeSection === 'EXPENSES' ? colors.textPrimary : colors.textMuted}
-          />
-          <Text
-            style={[
-              styles.bottomTabLabel,
-              activeSection === 'EXPENSES' && styles.bottomTabLabelActive
-            ]}
-          >
-            Expenses
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.bottomAddBtn}
-          onPress={handleFabPress}
-          activeOpacity={0.85}
-        >
-          <Feather name="plus" size={20} color={colors.solidBtnText} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.bottomTab}
-          onPress={() => {
-            hapticTap('light');
-            handleSelectSection('CALENDAR');
-          }}
-          activeOpacity={0.7}
-        >
-          <View>
-            <Feather
-              name="calendar"
-              size={18}
-              color={activeSection === 'CALENDAR' ? colors.textPrimary : colors.textMuted}
-            />
-            {activeTodayAlarmsCount > 0 && <View style={styles.bottomTabDot} />}
-          </View>
-          <Text
-            style={[
-              styles.bottomTabLabel,
-              activeSection === 'CALENDAR' && styles.bottomTabLabelActive
-            ]}
-          >
-            Calendar
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.bottomTab}
-          onPress={() => {
-            hapticTap('light');
-            handleSelectSection('NOTE');
-          }}
-          activeOpacity={0.7}
-        >
-          <Feather
-            name="file-text"
-            size={18}
-            color={activeSection === 'NOTE' ? colors.textPrimary : colors.textMuted}
-          />
-          <Text
-            style={[
-              styles.bottomTabLabel,
-              activeSection === 'NOTE' && styles.bottomTabLabelActive
-            ]}
-          >
-            Notes
-          </Text>
-        </TouchableOpacity>
+        {[
+          { id: 'HOME', label: 'Home', icon: 'home' },
+          { id: 'EXPENSES', label: 'Expenses', icon: 'credit-card' },
+          null,
+          { id: 'CALENDAR', label: 'Calendar', icon: 'calendar', showDot: activeTodayAlarmsCount > 0 },
+          { id: 'NOTE', label: 'Notes', icon: 'file-text' }
+        ].map((tab) => {
+          if (!tab) {
+            return (
+              <TouchableOpacity
+                key="add-center"
+                style={styles.bottomAddBtn}
+                onPress={handleFabPress}
+                activeOpacity={0.85}
+              >
+                <Feather name="plus" size={20} color={colors.solidBtnText} />
+              </TouchableOpacity>
+            );
+          }
+          const isActive = activeSection === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={styles.bottomTab}
+              onPress={() => {
+                hapticTap('light');
+                handleSelectSection(tab.id);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.bottomTabIconWrap, isActive && styles.bottomTabIconWrapActive]}>
+                <Feather
+                  name={tab.icon}
+                  size={17}
+                  color={isActive ? colors.textPrimary : colors.textMuted}
+                />
+                {tab.showDot && <View style={styles.bottomTabDot} />}
+              </View>
+              <Text
+                style={[
+                  styles.bottomTabLabel,
+                  isActive && styles.bottomTabLabelActive
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Toast */}
@@ -1158,8 +1105,10 @@ const makeStyles = (colors) =>
       justifyContent: 'space-between',
       paddingHorizontal: 20,
       paddingTop: 10,
-      paddingBottom: 8,
-      gap: 8
+      paddingBottom: 10,
+      gap: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border
     },
     headerLeft: {
       flexDirection: 'row',
@@ -1309,7 +1258,17 @@ const makeStyles = (colors) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: 3,
-      paddingVertical: 4
+      paddingVertical: 2
+    },
+    bottomTabIconWrap: {
+      paddingHorizontal: 14,
+      paddingVertical: 5,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    bottomTabIconWrapActive: {
+      backgroundColor: colors.activeTabBg
     },
     bottomTabLabel: {
       fontSize: 10.5,
@@ -1322,8 +1281,8 @@ const makeStyles = (colors) =>
     },
     bottomTabDot: {
       position: 'absolute',
-      top: -2,
-      right: -5,
+      top: 3,
+      right: 10,
       width: 7,
       height: 7,
       borderRadius: 3.5,
@@ -1338,7 +1297,12 @@ const makeStyles = (colors) =>
       backgroundColor: colors.solidBtnBg,
       alignItems: 'center',
       justifyContent: 'center',
-      marginHorizontal: 6
+      marginHorizontal: 6,
+      elevation: 3,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.22,
+      shadowRadius: 4
     },
     toastContainer: {
       position: 'absolute',

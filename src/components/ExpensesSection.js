@@ -763,7 +763,8 @@ const makeStyles = (colors) =>
       fontSize: 34,
       fontWeight: '800',
       color: colors.textPrimary,
-      letterSpacing: -0.8,
+      fontVariant: ['tabular-nums'],
+      letterSpacing: -1,
       marginBottom: 12
     },
     progressTrack: {
@@ -807,7 +808,8 @@ const makeStyles = (colors) =>
     metricValue: {
       fontSize: 14,
       fontWeight: '700',
-      color: colors.textPrimary
+      color: colors.textPrimary,
+      fontVariant: ['tabular-nums']
     },
     actionRow: {
       flexDirection: 'row',
@@ -983,6 +985,7 @@ const makeStyles = (colors) =>
       justifyContent: 'center'
     },
     txIconBoxCash: {
+      backgroundColor: colors.successTint,
       borderColor: 'rgba(48, 164, 108, 0.35)'
     },
     txTitle: {
@@ -998,7 +1001,8 @@ const makeStyles = (colors) =>
     txAmount: {
       fontSize: 14,
       fontWeight: '700',
-      color: colors.textPrimary
+      color: colors.textPrimary,
+      fontVariant: ['tabular-nums']
     },
     txDeleteBtn: {
       padding: 4,
