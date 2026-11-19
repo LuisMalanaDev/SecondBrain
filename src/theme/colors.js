@@ -99,6 +99,7 @@ export const VAULT_SECTIONS = [
   { id: 'EXPENSES', label: 'Expenses', description: 'Cash on hand & daily spending', icon: 'credit-card' },
   { id: 'ANALYTICS', label: 'Analytics', description: 'Cash flow & spending insights', icon: 'bar-chart-2' },
   { id: 'CALENDAR', label: 'Calendar', description: 'Birthdays, anniversaries & countdowns', icon: 'calendar' },
+  { id: 'COMPANION', label: 'Vault Tree', description: 'Live monochrome companion grown by all sections', icon: 'aperture' },
   { id: 'NOTE', label: 'Notes', description: 'Private notes & photos', icon: 'file-text' },
   { id: 'VOICE', label: 'Voice', description: 'Offline voice memos', icon: 'mic' },
   { id: 'PASSWORD', label: 'Passwords', description: 'PIN-locked credentials', icon: 'lock' },

@@ -38,6 +38,7 @@ import {
   replaceAllVaultEvents,
   clearAllVaultEvents,
   saveAcknowledgedAlerts,
+  saveCompanionState,
   deleteMediaFile,
   clearAllMediaFiles,
   saveVaultPin,
@@ -49,10 +50,16 @@ import {
   computeExpenseStats,
   computeEventStats,
   getActiveAlertKeyForToday,
+  toLocalDateKey,
+  addDaysToDateKey,
   formatShareText,
   hapticTap,
   hapticNotify
 } from './src/utils/helpers';
+import {
+  DEFAULT_COMPANION_STATE,
+  computeCompanionProgress
+} from './src/utils/companionEngine';
 import {
   configureNotifications,
   syncEventNotifications,
@@ -64,6 +71,7 @@ import HomeSection from './src/components/HomeSection';
 import ExpensesSection from './src/components/ExpensesSection';
 import AnalyticsSection from './src/components/AnalyticsSection';
 import CalendarSection from './src/components/CalendarSection';
+import CompanionSection from './src/components/CompanionSection';
 import VaultItemCard from './src/components/VaultItemCard';
 import QuickCaptureModal from './src/components/QuickCaptureModal';
 import PinLockModal from './src/components/PinLockModal';
@@ -75,6 +83,7 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [events, setEvents] = useState([]);
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState({});
+  const [companionState, setCompanionState] = useState(DEFAULT_COMPANION_STATE);
   const [pinCode, setPinCode] = useState(null);
   const [settings, setSettings] = useState({
     lockOnAppOpen: false,
@@ -98,6 +107,10 @@ export default function App() {
       setExpenses(state.expenses || []);
       setEvents(state.events || []);
       setAcknowledgedAlerts(state.acknowledgedAlerts || {});
+      setCompanionState({
+        ...DEFAULT_COMPANION_STATE,
+        ...(state.companionState || {})
+      });
       setPinCode(state.pinCode);
       setSettings(state.settings);
 
@@ -120,6 +133,8 @@ export default function App() {
           setEvents={setEvents}
           acknowledgedAlerts={acknowledgedAlerts}
           setAcknowledgedAlerts={setAcknowledgedAlerts}
+          companionState={companionState}
+          setCompanionState={setCompanionState}
           pinCode={pinCode}
           setPinCode={setPinCode}
           settings={settings}
@@ -142,6 +157,8 @@ function AppShell({
   setEvents,
   acknowledgedAlerts,
   setAcknowledgedAlerts,
+  companionState,
+  setCompanionState,
   pinCode,
   setPinCode,
   settings,
@@ -635,12 +652,60 @@ function AppShell({
     setExpenses([]);
     setEvents([]);
     setAcknowledgedAlerts({});
+    setCompanionState(DEFAULT_COMPANION_STATE);
     setDetailItemId(null);
     clearAllMediaFiles();
     await replaceAllVaultItems([]);
     await clearAllExpenses();
     await clearAllVaultEvents();
+    await saveCompanionState(DEFAULT_COMPANION_STATE);
   };
+
+  const handleNurtureCompanion = useCallback(async () => {
+    const todayKey = toLocalDateKey(new Date());
+    const yesterdayKey = addDaysToDateKey(todayKey, -1);
+    if (companionState?.lastCheckInKey === todayKey) return;
+
+    const prevStreak = companionState?.lastCheckInKey === yesterdayKey ? (companionState?.streak || 0) : 0;
+    const nextStreak = prevStreak + 1;
+    const next = {
+      ...DEFAULT_COMPANION_STATE,
+      ...(companionState || {}),
+      lastCheckInKey: todayKey,
+      streak: nextStreak,
+      bestStreak: Math.max(companionState?.bestStreak || 0, nextStreak),
+      checkInCount: (companionState?.checkInCount || 0) + 1,
+      bonusXp: (companionState?.bonusXp || 0) + 30
+    };
+    setCompanionState(next);
+    await saveCompanionState(next);
+    showToast(`Nurtured! +30 XP • ${nextStreak}d Streak`);
+  }, [companionState, setCompanionState, showToast]);
+
+  const handleChangeCompanionForm = useCallback(
+    async (form) => {
+      const next = {
+        ...DEFAULT_COMPANION_STATE,
+        ...(companionState || {}),
+        form: form === 'TREE' ? 'TREE' : 'ORB'
+      };
+      setCompanionState(next);
+      await saveCompanionState(next);
+    },
+    [companionState, setCompanionState]
+  );
+
+  const companionProgress = useMemo(
+    () =>
+      computeCompanionProgress({
+        items,
+        expenses,
+        events,
+        hasPin: Boolean(pinCode),
+        companionState
+      }),
+    [items, expenses, events, pinCode, companionState]
+  );
 
   const openQuickCapture = (type = 'NOTE') => {
     hapticTap('medium');
@@ -664,6 +729,15 @@ function AppShell({
     if (activeSection === 'CALENDAR') {
       hapticTap('medium');
       setCalendarModalTrigger('ANNIVERSARY');
+      return;
+    }
+    if (activeSection === 'COMPANION') {
+      if (!companionProgress.checkedInToday) {
+        hapticNotify('success');
+        handleNurtureCompanion();
+        return;
+      }
+      openQuickCapture('NOTE');
       return;
     }
     const defaultType =
@@ -691,7 +765,8 @@ function AppShell({
     activeSection !== 'HOME' &&
     activeSection !== 'EXPENSES' &&
     activeSection !== 'ANALYTICS' &&
-    activeSection !== 'CALENDAR';
+    activeSection !== 'CALENDAR' &&
+    activeSection !== 'COMPANION';
 
   if (!isLoaded) {
     return (
@@ -763,6 +838,7 @@ function AppShell({
             stats={stats}
             expenseBalance={expenseStats.balance}
             eventCount={events.length}
+            companionLevel={companionProgress.level}
             compact={true}
           />
 
@@ -807,6 +883,7 @@ function AppShell({
           onAcknowledgeAlert={handleAcknowledgeAlert}
           stats={stats}
           expenseStats={expenseStats}
+          companionProgress={companionProgress}
           hasPin={Boolean(pinCode)}
           sessionUnlocked={sessionUnlocked}
           onSelectSection={handleSelectSection}
@@ -858,6 +935,20 @@ function AppShell({
           externalAddTrigger={calendarModalTrigger}
           onExternalTriggerHandled={() => setCalendarModalTrigger(null)}
           onShowToast={showToast}
+        />
+      )}
+
+      {/* MONOCHROME COMPANION / VAULT TREE */}
+      {activeSection === 'COMPANION' && (
+        <CompanionSection
+          items={items}
+          expenses={expenses}
+          events={events}
+          hasPin={Boolean(pinCode)}
+          companionState={companionState}
+          onNurtureDaily={handleNurtureCompanion}
+          onChangeForm={handleChangeCompanionForm}
+          onSelectSection={handleSelectSection}
         />
       )}
 

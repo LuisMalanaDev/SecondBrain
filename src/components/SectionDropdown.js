@@ -22,6 +22,7 @@ export default function SectionDropdown({
   stats,
   expenseBalance = 0,
   eventCount = 0,
+  companionLevel = 1,
   compact = false
 }) {
   const { colors } = useTheme();
@@ -35,6 +36,7 @@ export default function SectionDropdown({
     if (sectionId === 'HOME' || sectionId === 'ANALYTICS') return null;
     if (sectionId === 'EXPENSES') return formatPeso(expenseBalance);
     if (sectionId === 'CALENDAR') return String(eventCount || 0);
+    if (sectionId === 'COMPANION') return `Lv ${companionLevel || 1}`;
     if (sectionId === 'NOTE') return String(stats.notes || 0);
     if (sectionId === 'VOICE') return String(stats.voiceMemos || 0);
     if (sectionId === 'PASSWORD') return String(stats.passwords || 0);

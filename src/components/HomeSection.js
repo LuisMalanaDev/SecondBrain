@@ -41,6 +41,13 @@ const FEATURE_GUIDE = [
       'Save birthdays, monthsaries (e.g. every 28th), anniversaries, and important dates with live age/duration tracking and reminder alerts.'
   },
   {
+    id: 'COMPANION',
+    title: 'Vault Tree & Focus Orb',
+    icon: 'aperture',
+    summary:
+      'A calm monochrome companion powered by every section you use — check in daily for streaks and bonus Celebration XP on special dates.'
+  },
+  {
     id: 'EXPENSES',
     title: 'Expenses & Cash',
     icon: 'credit-card',
@@ -106,6 +113,7 @@ export default function HomeSection({
   onAcknowledgeAlert,
   stats,
   expenseStats,
+  companionProgress,
   hasPin,
   sessionUnlocked,
   onSelectSection,
@@ -179,6 +187,7 @@ export default function HomeSection({
 
   function getCountLabel(id) {
     if (id === 'CALENDAR') return `${events.length || 0}`;
+    if (id === 'COMPANION') return companionProgress ? `Lv ${companionProgress.level}` : 'Lv 1';
     if (id === 'EXPENSES') return formatPeso(expenseStats.balance);
     if (id === 'ANALYTICS') return formatPeso(expenseStats.totalSpent);
     if (id === 'NOTE') return `${stats.notes || 0}`;
