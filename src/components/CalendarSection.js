@@ -703,7 +703,9 @@ export default function CalendarSection({
 
               {/* Month Picker */}
               <Text style={styles.label}>
-                {evType === 'MONTHSARY' ? 'START MONTH (OPTIONAL)' : 'MONTH'}
+                {evType === 'MONTHSARY'
+                  ? 'START MONTH (PICK + ADD YEAR TO COUNT 1ST, 2ND, 49TH...)'
+                  : 'MONTH'}
               </Text>
               <View style={styles.monthGrid}>
                 {evType === 'MONTHSARY' && (

@@ -445,10 +445,16 @@ export function computeEventStats(event, refDate = new Date()) {
       if (startDate <= today) {
         const diff = diffYMD(startDate, today);
         const totalMonths = diff.years * 12 + diff.months;
-        primaryHeadline = `${totalMonths} ${totalMonths === 1 ? 'month' : 'months'}${
-          diff.days > 0 ? `, ${diff.days} ${diff.days === 1 ? 'day' : 'days'}` : ''
-        } together`;
-        secondaryDetail = `${ordinalSuffix(totalMonths + (daysUntil === 0 ? 0 : 1))} Monthsary • ${countdownLabel}`;
+        if (daysUntil === 0) {
+          primaryHeadline = `${ordinalSuffix(totalMonths)} Monthsary Today!`;
+          secondaryDetail = `${diff.totalDays.toLocaleString()} total days (${totalMonths} months together)`;
+        } else {
+          const nextNum = totalMonths + 1;
+          primaryHeadline = `${totalMonths} ${totalMonths === 1 ? 'month' : 'months'}${
+            diff.days > 0 ? `, ${diff.days} ${diff.days === 1 ? 'day' : 'days'}` : ''
+          } together`;
+          secondaryDetail = `Next: ${ordinalSuffix(nextNum)} Monthsary • ${countdownLabel}`;
+        }
       } else {
         primaryHeadline = countdownLabel || 'Upcoming Monthsary';
       }

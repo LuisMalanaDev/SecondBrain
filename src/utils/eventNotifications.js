@@ -160,8 +160,15 @@ export async function syncEventNotifications(events = [], notificationsEnabled =
         const prefix =
           offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : `In ${offset} days`;
 
+        const monthsaryMilestone =
+          ev.type === 'MONTHSARY' && stats.secondaryDetail?.includes('Monthsary')
+            ? stats.secondaryDetail.split('•')[0].replace('Next:', '').trim()
+            : null;
+
         const body =
-          ev.type === 'BIRTHDAY' || ev.type === 'ANNIVERSARY' || ev.type === 'MONTHSARY'
+          ev.type === 'MONTHSARY' && monthsaryMilestone
+            ? `${prefix} (${dateStr}): ${ev.title} — ${monthsaryMilestone}!`
+            : ev.type === 'BIRTHDAY' || ev.type === 'ANNIVERSARY' || ev.type === 'MONTHSARY'
             ? `${prefix} (${dateStr}): ${ev.title} — ${stats.primaryHeadline || typeLabel}`
             : `${prefix} (${dateStr}): ${ev.title}`;
 
