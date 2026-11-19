@@ -11,8 +11,38 @@ import {
   ScrollView,
   Animated,
   Easing,
-  StyleSheet
+  StyleSheet,
+  Platform,
+  LayoutAnimation,
+  UIManager
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const GUIDE_STEPS = [
+  {
+    icon: 'layers',
+    title: 'Grows From All Sections',
+    body: 'Every Note, Task, Voice Memo, Expense, Password, Link & Calendar Date you save adds XP (Levels 1–6).'
+  },
+  {
+    icon: 'check-circle',
+    title: 'Daily Quests & Streak (+40 XP)',
+    body: 'Tap Nurture daily, log cash/expenses, and finish a task or focus session to build your Streak.'
+  },
+  {
+    icon: 'clock',
+    title: 'Focus Orb Timer (+25 XP)',
+    body: 'Pick an open Task and run a 5m, 15m, or 25m timer with zero distractions.'
+  },
+  {
+    icon: 'zap',
+    title: 'Memory Spark & Celebration Boost',
+    body: 'Play 3-choice quiz trivia (+15 XP) from your Vault — plus +25% bonus XP automatically on special dates!'
+  }
+];
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/colors';
 import {
@@ -64,6 +94,13 @@ export default function CompanionSection({
   const spinRevAnim = useRef(new Animated.Value(0)).current;
   const tapScale = useRef(new Animated.Value(1)).current;
   const [tapHint, setTapHint] = useState('');
+  const [guideOpen, setGuideOpen] = useState(() => (companionState?.checkInCount || 0) === 0);
+
+  function toggleGuide() {
+    hapticTap('light');
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setGuideOpen((v) => !v);
+  }
 
   // Focus Timer State
   const [focusMinutes, setFocusMinutes] = useState(15);
@@ -250,14 +287,58 @@ export default function CompanionSection({
           })}
         </View>
 
-        <View style={styles.streakPill}>
-          <PulseDot
-            color={focusActive || progress.checkedInToday ? colors.success : colors.warning}
-            size={6}
-          />
-          <Text style={styles.streakPillText}>{progress.streak}d Streak</Text>
+        <View style={styles.topRightPills}>
+          <TouchableOpacity
+            style={[styles.guideBtn, guideOpen && styles.guideBtnActive]}
+            onPress={toggleGuide}
+            hitSlop={6}
+            activeOpacity={0.75}
+          >
+            <Feather
+              name="help-circle"
+              size={13}
+              color={guideOpen ? colors.textPrimary : colors.textSecondary}
+            />
+            <Text style={[styles.guideBtnText, guideOpen && { color: colors.textPrimary }]}>
+              Guide
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.streakPill}>
+            <PulseDot
+              color={focusActive || progress.checkedInToday ? colors.success : colors.warning}
+              size={6}
+            />
+            <Text style={styles.streakPillText}>{progress.streak}d</Text>
+          </View>
         </View>
       </View>
+
+      {/* Minimalist How It Works Guide */}
+      {guideOpen && (
+        <View style={styles.guideCard}>
+          <View style={styles.guideHeader}>
+            <Text style={styles.guideHeading}>HOW VAULT TREE WORKS</Text>
+            <TouchableOpacity onPress={toggleGuide} hitSlop={8}>
+              <Text style={styles.guideHideText}>Hide</Text>
+            </TouchableOpacity>
+          </View>
+          {GUIDE_STEPS.map((step, idx) => (
+            <View
+              key={step.title}
+              style={[styles.guideRow, idx > 0 && styles.sourceRowBorder]}
+            >
+              <View style={styles.guideIconBox}>
+                <Feather name={step.icon} size={13} color={colors.textPrimary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.guideTitle}>{step.title}</Text>
+                <Text style={styles.guideBody}>{step.body}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Special Calendar Milestone Multiplier Banner */}
       {progress.hasTodayCelebration && (
@@ -1383,5 +1464,88 @@ const makeStyles = (colors) =>
       fontSize: 12,
       fontWeight: '600',
       color: colors.textMuted
+    },
+    topRightPills: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6
+    },
+    guideBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      paddingHorizontal: 10,
+      paddingVertical: 6
+    },
+    guideBtnActive: {
+      backgroundColor: colors.surfaceElevated,
+      borderColor: colors.borderHover
+    },
+    guideBtnText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary
+    },
+    guideCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      overflow: 'hidden',
+      marginBottom: 14
+    },
+    guideHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: colors.surfaceElevated,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border
+    },
+    guideHeading: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.8
+    },
+    guideHideText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary
+    },
+    guideRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10
+    },
+    guideIconBox: {
+      width: 26,
+      height: 26,
+      borderRadius: 7,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 1
+    },
+    guideTitle: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 2
+    },
+    guideBody: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      lineHeight: 16.5
     }
   });
