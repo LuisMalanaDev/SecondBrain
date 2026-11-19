@@ -957,7 +957,7 @@ const makeStyles = (colors) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     scroll: { flex: 1 },
-    content: { padding: 14, paddingBottom: 96 },
+    content: { padding: 14, paddingBottom: 28 },
     topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     bellChip: {
       flexDirection: 'row',

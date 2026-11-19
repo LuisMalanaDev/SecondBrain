@@ -738,7 +738,9 @@ function AppShell({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>SecondBrain</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            SecondBrain
+          </Text>
           {pinCode ? (
             <TouchableOpacity
               onPress={toggleSessionLock}
@@ -747,17 +749,23 @@ function AppShell({
             >
               <Feather
                 name={sessionUnlocked ? 'unlock' : 'lock'}
-                size={11}
+                size={12}
                 color={colors.textSecondary}
               />
-              <Text style={styles.lockStatusText}>
-                {sessionUnlocked ? 'Unlocked' : 'Locked'}
-              </Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
         <View style={styles.headerRight}>
+          <SectionDropdown
+            activeSection={activeSection}
+            onSelectSection={handleSelectSection}
+            stats={stats}
+            expenseBalance={expenseStats.balance}
+            eventCount={events.length}
+            compact={true}
+          />
+
           {activeTodayAlarmsCount > 0 && (
             <TouchableOpacity
               style={styles.alarmBellBtn}
@@ -768,7 +776,7 @@ function AppShell({
               activeOpacity={0.7}
               hitSlop={8}
             >
-              <Feather name="bell" size={16} color={colors.warning} />
+              <Feather name="bell" size={15} color={colors.warning} />
               <View style={styles.alarmBellDot} />
             </TouchableOpacity>
           )}
@@ -782,21 +790,14 @@ function AppShell({
             activeOpacity={0.7}
             hitSlop={8}
           >
-            <Feather name="settings" size={17} color={colors.textSecondary} />
+            <Feather name="settings" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Dropdown Section Switcher */}
-      <SectionDropdown
-        activeSection={activeSection}
-        onSelectSection={handleSelectSection}
-        stats={stats}
-        expenseBalance={expenseStats.balance}
-        eventCount={events.length}
-      />
-
-      {/* HOME SECTION */}
+      {/* Main Content Area (sits cleanly above docked bottom bar) */}
+      <View style={styles.mainContent}>
+        {/* HOME SECTION */}
       {activeSection === 'HOME' && (
         <HomeSection
           items={items}
@@ -926,7 +927,7 @@ function AppShell({
                     ? 'Try a different search term.'
                     : activeSection === 'PINNED'
                     ? 'Bookmark any item to pin it here for quick access.'
-                    : `Tap + New to create your first ${activeSectionMeta.label.toLowerCase()} entry.`}
+                    : `Tap + below to create your first ${activeSectionMeta.label.toLowerCase()} entry.`}
                 </Text>
 
                 {!searchQuery && activeSection !== 'PINNED' && (
@@ -946,20 +947,113 @@ function AppShell({
           />
         </>
       )}
+      </View>
 
-      {/* Floating Action Button */}
-      {activeSection !== 'ANALYTICS' && (
-        <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.85}>
-          <Feather name="plus" size={16} color={colors.solidBtnText} />
-          <Text style={styles.fabText}>
-            {activeSection === 'EXPENSES'
-              ? 'Expense'
-              : activeSection === 'CALENDAR'
-              ? 'Date'
-              : 'New'}
+      {/* Docked One-Handed Bottom Bar (always safely above Android nav buttons) */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={styles.bottomTab}
+          onPress={() => {
+            hapticTap('light');
+            handleSelectSection('HOME');
+          }}
+          activeOpacity={0.7}
+        >
+          <Feather
+            name="home"
+            size={18}
+            color={activeSection === 'HOME' ? colors.textPrimary : colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.bottomTabLabel,
+              activeSection === 'HOME' && styles.bottomTabLabelActive
+            ]}
+          >
+            Home
           </Text>
         </TouchableOpacity>
-      )}
+
+        <TouchableOpacity
+          style={styles.bottomTab}
+          onPress={() => {
+            hapticTap('light');
+            handleSelectSection('EXPENSES');
+          }}
+          activeOpacity={0.7}
+        >
+          <Feather
+            name="credit-card"
+            size={18}
+            color={activeSection === 'EXPENSES' ? colors.textPrimary : colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.bottomTabLabel,
+              activeSection === 'EXPENSES' && styles.bottomTabLabelActive
+            ]}
+          >
+            Expenses
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomAddBtn}
+          onPress={handleFabPress}
+          activeOpacity={0.85}
+        >
+          <Feather name="plus" size={20} color={colors.solidBtnText} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomTab}
+          onPress={() => {
+            hapticTap('light');
+            handleSelectSection('CALENDAR');
+          }}
+          activeOpacity={0.7}
+        >
+          <View>
+            <Feather
+              name="calendar"
+              size={18}
+              color={activeSection === 'CALENDAR' ? colors.textPrimary : colors.textMuted}
+            />
+            {activeTodayAlarmsCount > 0 && <View style={styles.bottomTabDot} />}
+          </View>
+          <Text
+            style={[
+              styles.bottomTabLabel,
+              activeSection === 'CALENDAR' && styles.bottomTabLabelActive
+            ]}
+          >
+            Calendar
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomTab}
+          onPress={() => {
+            hapticTap('light');
+            handleSelectSection('NOTE');
+          }}
+          activeOpacity={0.7}
+        >
+          <Feather
+            name="file-text"
+            size={18}
+            color={activeSection === 'NOTE' ? colors.textPrimary : colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.bottomTabLabel,
+              activeSection === 'NOTE' && styles.bottomTabLabelActive
+            ]}
+          >
+            Notes
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Toast */}
       {toastText && (
@@ -1063,16 +1157,18 @@ const makeStyles = (colors) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 20,
-      paddingTop: 12,
-      paddingBottom: 8
+      paddingTop: 10,
+      paddingBottom: 8,
+      gap: 8
     },
     headerLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10
+      gap: 8,
+      flexShrink: 1
     },
     headerTitle: {
-      fontSize: 22,
+      fontSize: 20,
       fontWeight: '800',
       color: colors.textPrimary,
       letterSpacing: -0.5
@@ -1080,20 +1176,16 @@ const makeStyles = (colors) =>
     lockStatusPill: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 5,
+      justifyContent: 'center',
       backgroundColor: colors.surfaceElevated,
       borderWidth: 1,
       borderColor: colors.border,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6
+      width: 28,
+      height: 28,
+      borderRadius: 14
     },
-    lockStatusText: {
-      fontSize: 10,
-      fontWeight: '600',
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5
+    mainContent: {
+      flex: 1
     },
     headerRight: {
       flexDirection: 'row',
@@ -1152,7 +1244,7 @@ const makeStyles = (colors) =>
     listContent: {
       paddingHorizontal: 20,
       paddingTop: 4,
-      paddingBottom: 100
+      paddingBottom: 28
     },
     emptyContainer: {
       alignItems: 'center',
@@ -1201,31 +1293,56 @@ const makeStyles = (colors) =>
       fontSize: 13,
       fontWeight: '600'
     },
-    fab: {
-      position: 'absolute',
-      bottom: 18,
-      right: 20,
+    bottomBar: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 5,
-      backgroundColor: colors.solidBtnBg,
-      borderRadius: 22,
-      paddingVertical: 11,
-      paddingHorizontal: 18,
-      elevation: 4,
-      shadowColor: '#000000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4
+      justifyContent: 'space-around',
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+      paddingBottom: 8,
+      paddingHorizontal: 10
     },
-    fabText: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: colors.solidBtnText
+    bottomTab: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      paddingVertical: 4
+    },
+    bottomTabLabel: {
+      fontSize: 10.5,
+      fontWeight: '600',
+      color: colors.textMuted
+    },
+    bottomTabLabelActive: {
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    bottomTabDot: {
+      position: 'absolute',
+      top: -2,
+      right: -5,
+      width: 7,
+      height: 7,
+      borderRadius: 3.5,
+      backgroundColor: colors.warning,
+      borderWidth: 1.5,
+      borderColor: colors.surface
+    },
+    bottomAddBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.solidBtnBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginHorizontal: 6
     },
     toastContainer: {
       position: 'absolute',
-      bottom: Platform.OS === 'ios' ? 88 : 76,
+      bottom: Platform.OS === 'ios' ? 92 : 84,
       alignSelf: 'center',
       backgroundColor: colors.surfaceElevated,
       borderWidth: 1,

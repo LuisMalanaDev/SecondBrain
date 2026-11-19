@@ -150,6 +150,26 @@ export default function HomeSection({
       .sort((a, b) => a.evStats.daysUntil - b.evStats.daysUntil);
   }, [events]);
 
+  const nextAnyEvent = useMemo(() => {
+    const withDays = events
+      .map((ev) => ({ ...ev, evStats: computeEventStats(ev) }))
+      .filter((ev) => ev.evStats.daysUntil !== null)
+      .sort((a, b) => a.evStats.daysUntil - b.evStats.daysUntil);
+    return withDays[0] || null;
+  }, [events]);
+
+  const taskStats = useMemo(() => {
+    const lists = items.filter((i) => i.type === 'CHECKLIST');
+    let totalTasks = 0;
+    let doneTasks = 0;
+    for (const l of lists) {
+      const ch = l.checklist || [];
+      totalTasks += ch.length;
+      doneTasks += ch.filter((c) => c.done).length;
+    }
+    return { lists: lists.length, totalTasks, doneTasks, openTasks: totalTasks - doneTasks };
+  }, [items]);
+
   function getCountLabel(id) {
     if (id === 'CALENDAR') return `${events.length || 0}`;
     if (id === 'EXPENSES') return formatPeso(expenseStats.balance);
@@ -410,42 +430,84 @@ export default function HomeSection({
               );
             })()}
 
-            <View style={styles.snapshotRow}>
-              <TouchableOpacity
-                style={styles.snapshotCard}
-                onPress={() => {
-                  hapticTap('light');
-                  onSelectSection('EXPENSES');
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.snapshotLabel}>CASH ON HAND</Text>
-                <Text
-                  style={[
-                    styles.snapshotValue,
-                    expenseStats.balance < 0 && { color: colors.danger }
-                  ]}
-                  numberOfLines={1}
+            <View style={styles.snapshotGrid}>
+              <View style={styles.snapshotRow}>
+                <TouchableOpacity
+                  style={styles.snapshotCard}
+                  onPress={() => {
+                    hapticTap('light');
+                    onSelectSection('EXPENSES');
+                  }}
+                  activeOpacity={0.75}
                 >
-                  {formatPeso(expenseStats.balance)}
-                </Text>
-                <Text style={styles.snapshotHint}>Open Expenses ›</Text>
-              </TouchableOpacity>
+                  <Text style={styles.snapshotLabel}>CASH ON HAND</Text>
+                  <Text
+                    style={[
+                      styles.snapshotValue,
+                      expenseStats.balance < 0 && { color: colors.danger }
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {formatPeso(expenseStats.balance)}
+                  </Text>
+                  <Text style={styles.snapshotHint}>Open Expenses ›</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.snapshotCard}
-                onPress={() => {
-                  hapticTap('light');
-                  onOpenSettings();
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.snapshotLabel}>VAULT STATUS</Text>
-                <Text style={styles.snapshotValue}>{stats.total} Saved</Text>
-                <Text style={styles.snapshotHint}>
-                  {hasPin ? 'PIN Protected ›' : 'Set 4-Digit PIN ›'}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.snapshotCard}
+                  onPress={() => {
+                    hapticTap('light');
+                    onSelectSection('CALENDAR');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.snapshotLabel}>NEXT MILESTONE</Text>
+                  <Text style={styles.snapshotValue} numberOfLines={1}>
+                    {nextAnyEvent ? nextAnyEvent.evStats.countdownLabel : `${events.length} Dates`}
+                  </Text>
+                  <Text style={styles.snapshotHint} numberOfLines={1}>
+                    {nextAnyEvent ? nextAnyEvent.title : 'Add Birthday / Date ›'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.snapshotRow}>
+                <TouchableOpacity
+                  style={styles.snapshotCard}
+                  onPress={() => {
+                    hapticTap('light');
+                    onSelectSection('CHECKLIST');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.snapshotLabel}>OPEN TASKS</Text>
+                  <Text style={styles.snapshotValue} numberOfLines={1}>
+                    {taskStats.totalTasks > 0
+                      ? `${taskStats.doneTasks}/${taskStats.totalTasks} Done`
+                      : `${taskStats.lists} Lists`}
+                  </Text>
+                  <Text style={styles.snapshotHint} numberOfLines={1}>
+                    {taskStats.openTasks > 0
+                      ? `${taskStats.openTasks} remaining ›`
+                      : 'Open Tasks ›'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.snapshotCard}
+                  onPress={() => {
+                    hapticTap('light');
+                    onOpenSettings();
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.snapshotLabel}>VAULT STATUS</Text>
+                  <Text style={styles.snapshotValue}>{stats.total} Saved</Text>
+                  <Text style={styles.snapshotHint}>
+                    {hasPin ? 'PIN Protected ›' : 'Set 4-Digit PIN ›'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <Text style={styles.sectionHeading}>WHAT THIS APP CAN DO</Text>
@@ -523,7 +585,7 @@ const makeStyles = (colors) =>
     content: {
       paddingHorizontal: 20,
       paddingTop: 4,
-      paddingBottom: 112
+      paddingBottom: 28
     },
     resultsHeader: {
       flexDirection: 'row',
@@ -655,10 +717,13 @@ const makeStyles = (colors) =>
       color: colors.textSecondary,
       lineHeight: 20
     },
+    snapshotGrid: {
+      gap: 10,
+      marginBottom: 20
+    },
     snapshotRow: {
       flexDirection: 'row',
-      gap: 10,
-      marginBottom: 22
+      gap: 10
     },
     snapshotCard: {
       flex: 1,
@@ -666,7 +731,7 @@ const makeStyles = (colors) =>
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 14,
-      padding: 14
+      padding: 13
     },
     snapshotLabel: {
       fontSize: 10,

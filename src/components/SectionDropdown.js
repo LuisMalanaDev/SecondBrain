@@ -21,7 +21,8 @@ export default function SectionDropdown({
   onSelectSection,
   stats,
   expenseBalance = 0,
-  eventCount = 0
+  eventCount = 0,
+  compact = false
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -47,35 +48,53 @@ export default function SectionDropdown({
 
   return (
     <>
-      <View style={styles.triggerWrap}>
+      {compact ? (
         <TouchableOpacity
-          style={styles.triggerBtn}
+          style={styles.compactTriggerBtn}
           onPress={() => {
             hapticTap('light');
             setOpen(true);
           }}
           activeOpacity={0.75}
+          hitSlop={6}
         >
-          <View style={styles.triggerLeft}>
-            <View style={styles.triggerIconBox}>
-              <Feather name={current.icon} size={14} color={colors.textPrimary} />
-            </View>
-            <View>
-              <Text style={styles.triggerLabel}>{current.label}</Text>
-              <Text style={styles.triggerSub}>{current.description}</Text>
-            </View>
-          </View>
-
-          <View style={styles.triggerRight}>
-            {activeBadge !== null && (
-              <View style={styles.countPill}>
-                <Text style={styles.countPillText}>{activeBadge}</Text>
-              </View>
-            )}
-            <Feather name="chevron-down" size={16} color={colors.textSecondary} />
-          </View>
+          <Feather name={current.icon} size={13} color={colors.textPrimary} />
+          <Text style={styles.compactTriggerLabel} numberOfLines={1}>
+            {current.label}
+          </Text>
+          <Feather name="chevron-down" size={14} color={colors.textSecondary} />
         </TouchableOpacity>
-      </View>
+      ) : (
+        <View style={styles.triggerWrap}>
+          <TouchableOpacity
+            style={styles.triggerBtn}
+            onPress={() => {
+              hapticTap('light');
+              setOpen(true);
+            }}
+            activeOpacity={0.75}
+          >
+            <View style={styles.triggerLeft}>
+              <View style={styles.triggerIconBox}>
+                <Feather name={current.icon} size={14} color={colors.textPrimary} />
+              </View>
+              <View>
+                <Text style={styles.triggerLabel}>{current.label}</Text>
+                <Text style={styles.triggerSub}>{current.description}</Text>
+              </View>
+            </View>
+
+            <View style={styles.triggerRight}>
+              {activeBadge !== null && (
+                <View style={styles.countPill}>
+                  <Text style={styles.countPillText}>{activeBadge}</Text>
+                </View>
+              )}
+              <Feather name="chevron-down" size={16} color={colors.textSecondary} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Modal
         visible={open}
@@ -159,6 +178,24 @@ export default function SectionDropdown({
 
 const makeStyles = (colors) =>
   StyleSheet.create({
+    compactTriggerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+      maxWidth: 138
+    },
+    compactTriggerLabel: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      flexShrink: 1
+    },
     triggerWrap: {
       paddingHorizontal: 20,
       paddingTop: 4,

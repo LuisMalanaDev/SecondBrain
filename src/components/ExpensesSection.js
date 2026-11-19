@@ -742,7 +742,7 @@ const makeStyles = (colors) =>
     listContent: {
       paddingHorizontal: 20,
       paddingTop: 6,
-      paddingBottom: 100
+      paddingBottom: 28
     },
     balanceCard: {
       backgroundColor: colors.surface,

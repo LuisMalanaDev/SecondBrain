@@ -808,7 +808,7 @@ const makeStyles = (colors) =>
     content: {
       paddingHorizontal: 20,
       paddingTop: 4,
-      paddingBottom: 90
+      paddingBottom: 28
     },
     scopeRow: {
       flexDirection: 'row',
